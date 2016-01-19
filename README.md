@@ -22,7 +22,7 @@ export KMOS_CALIB_DIR="/home/cschreib/programming/kmos/calib/kmos-1.3.14/cal/"
 4) Install the QFitsView tools:
 http://www.mpe.mpg.de/~ott/dpuser/qfitsview.html
 
-5) Some of the scripts I introduce below are written in C++ and use the phy++ library I developed during my PhD. I know Tao has it installed on his computer, but you guys probably not :) In this case, follow the following instructions (Tao, you may have to update the library anyway):
+5) Some of the scripts I introduce below are written in C++ and use the phy++ library I developed during my PhD. To install it, follow the following instructions:
 - Download this: https://github.com/cschreib/phypp/archive/master.tar.gz
 - Extract it into some temporary directory.
 - Make a new directory there called "build" and go there.
@@ -55,18 +55,18 @@ ophy++ rename ./
 
 3) Now manually group the files into new directories based 1) on the time at which they were taken, and 2) based on the category:
 - `*sci.fits`, `*sky.fits`, `*acq.fits`, `*NL.txt` and `*.xml` files go into `sci-XX`
-- `*object-sky-std-flux.fits" go into `calib-std-XX`
+- `*object-sky-std-flux.fits` go into `calib-std-XX`
 - the rest go into `calib-XX`
 
 "XX" is a number starting from "01" and increasing for each group. Basically, you want to group together the calibration files that were taken on the same day, and science images that belong to a single OB. I decide this based on the name of the files, which contains the date of observation. Be careful that, since observations are done in the night, sometime the date can change in the middle of an OB or calibration set ;) Similarly, sometimes two OBs can be executed on the same day. Be sure to check the hours and minutes, and that each OB contains the right number of "sci" images (e.g., for us we have an AABAA pattern, so 5 "sci" images per OB). Each OB is typically preceded by several "acq" frames, sometimes "sky" as well. Standard stars calibration sets are always made of 4 "std-flux" images.
 
-Other calibration sets can contain various types of images, not always the same. Usually this is 5 "dark", 3 "flat-off", 18 "flat-lamp", 1 "wave-off" and 6 "wave-lamp". Often there are 10 "dark", but the pipeline can only handle 5, so I only keep the 5 latest and place the earliest 5 into a sub-directory "unused" (this is important else you can get errors in the pipeline). In addition, sometimes you have 4 "flat-sky" a bit before the calibration set.
+Other calibration sets can contain various types of images, not always the same. Usually this is 5 "dark", 3 "flat-off", 18 "flat-lamp", 1 "wave-off" and 6 "wave-lamp". Often there are 10 "dark", but the pipeline can only handle 5, so I only keep the 5 latest and place the earliest 5 into a sub-directory "unused" (this is important else you can get errors in the pipeline). In addition, sometimes you have 4 "flat-sky" a bit before the calibration set. I don't know how standard this is, so I did not automatize this part.
 
 For one of our KMOS run, if I do this, I get 6 OBs, 4 calibration sets and 5 standard star calibration sets.
 
 ## C. Reduce the calibration data
 
-1) Then the boring part... Reducing the calibration data. Make sure that all the files that you manipulated in the previous step are stored in a separate and safe directory. Say, `/home/twang/data/kmos-cluster/`. To keep things clean, create a new directory, for example `/home/twang/data/kmos-cluster/reduced/`. I'll call this the "working directory", and the rest of the work will be done here in order to avoid touching the raw data by accident.
+1) Then the boring part... Reducing the calibration data. Make sure that all the files that you manipulated in the previous step are stored in a separate and safe directory. Say, `/home/cschreib/data/kmos/`. To keep things clean, create a new directory, for example `/home/cschreib/data/kmos/reduced/`. I'll call this the "working directory", and the rest of the work will be done here in order to avoid touching the raw data by accident.
 
 2) To make the task a bit simpler I have created a script to automatize most of the process. It is called "reduce.cpp". Copy it inside the working folder and compile it:
 ```bash
@@ -205,7 +205,7 @@ chmod +x reduce_sci.sh
 
 ## G. Check for the detection of helper targets
 
-1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude 21-19, as recommended in the manual. Additionally, with Tao we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction.
+1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude 21-19, as recommended in the manual. Additionally, some times we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction.
 
 NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that some other time. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
 
