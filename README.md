@@ -45,13 +45,13 @@ for f in *.Z; do gzip -d $f; done
 ophy++ rename ./
 ```
 
-Names:
-- *sci.fits: science images (for both A and B)
-- *acq.fits: acquisition images (bright stars used to position the telescope before the science runs)
-- *sky.fits: sky images (never used)
-- *object-sky-std-flux.fits: flux calibrators images
-- *dark.fits, *flat-off.fits, *flat-lamp.fits, *wave-off.fits, *wave-lamp.fits, *flat-sky.fits: various calibration images
-(you can ignore the files that start with M.KMOS.*)
+  Names:
+  - *sci.fits: science images (for both A and B)
+  - *acq.fits: acquisition images (bright stars used to position the telescope before the science runs)
+  - *sky.fits: sky images (never used)
+  - *object-sky-std-flux.fits: flux calibrators images
+  - *dark.fits, *flat-off.fits, *flat-lamp.fits, *wave-off.fits, *wave-lamp.fits, *flat-sky.fits: various calibration images
+  (you can ignore the files that start with M.KMOS.*)
 
 3. Now manually group the files into new directories based 1) on the time at which they were taken, and 2) based on the category:
 - "*sci.fits", "*sky.fits", "*acq.fits", "*NL.txt" and "*.xml" files go into "sci-XX"
