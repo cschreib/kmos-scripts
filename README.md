@@ -40,7 +40,7 @@ http://www.mpe.mpg.de/~ott/dpuser/qfitsview.html
 for f in *.Z; do gzip -d $f; done
 ```
 
-2) With a terminal go into this directory, and copy the the attached phy++ program "rename.cpp". You can run it with the command below; it will extract the purpose of each FITS file in the directory and rename it accordingly.
+2) With a terminal go into this directory, and copy the phy++ program "rename.cpp". You can run it with the command below; it will extract the purpose of each FITS file in the directory and rename it accordingly.
 ```bash
 ophy++ rename ./
 ```
@@ -73,7 +73,7 @@ For one of our KMOS run, if I do this, I get 6 OBs, 4 calibration sets and 5 sta
 cphy++ optimize reduce.cpp
 ```
 
-3) Now copy the attached "make_calib.sh" file into the working directory. Open it to make sure that :
+3) Now copy the "make_calib.sh" file into the working directory. Open it to make sure that :
 - all the calibration sets are listed in the CALIBS variable
 - the raw data directory is correct in RAW_DIR
 - the value of GRATING matches your observations (the format is `XXX`, where "X" is the name of the band in which you observe; by default is it the K band, so `GRATING=KKK`; in our some other of our own KMOS programs we used H+K, so `GRATING=HKHKHK`; you get the point).
@@ -96,7 +96,7 @@ Indeed, the people at ESO do the "flat-sky" calibration very rarely, which is ne
 
 However if any other file is missing, the reduction cannot proceed and "make_calib.sh" will tell you so.
 
-4) To actually reduce the data, you can go inside each "calib-XX" directory and run the "reduce.sh" script. Alternatively, if you want to reduce everything in one command, you can copy the attached "reduce_calib.sh" file into the working directory, run it and go get a coffee.
+4) To actually reduce the data, you can go inside each "calib-XX" directory and run the "reduce.sh" script. Alternatively, if you want to reduce everything in one command, you can copy the "reduce_calib.sh" file into the working directory, run it and go get a coffee.
 ```bash
 chmod +x reduce_calib.sh
 ./reduce_calib.sh
@@ -120,7 +120,7 @@ If something goes wrong, e.g. if one of the files above is missing or weird, ope
 
 ## D. Reduce the standard stars for absolute flux calibration
 
-1) Now that the calibration is fully reduced, we can reduce the standard stars to get absolute flux calibration. You may not care of the actual flux for your science case, but I think it can help reduce the RMS (not sure though). This is short anyway, and it will prepare you for the real science reduction later on since the procedure is very similar. So let's go! Copy the attached "make_stdstar.sh" script into the working directory and open it with your text editor.
+1) Now that the calibration is fully reduced, we can reduce the standard stars to get absolute flux calibration. You may not care of the actual flux for your science case, but I think it can help reduce the RMS (not sure though). This is short anyway, and it will prepare you for the real science reduction later on since the procedure is very similar. So let's go! Copy the "make_stdstar.sh" script into the working directory and open it with your text editor.
 
 Now, as for "make_calib.sh", make sure that the values of `RAW_DIR` and `GRATING` are correct. Then you see two things. The first is a Bash function that I use as a shortcut ("reduce_wrapper"). Don't touch it. Then there is a list of lines like:
 ```bash
@@ -152,7 +152,7 @@ chmod +x make_stdstar.sh
 ./make_stdstar.sh
 ```
 
-3) ... and reduce this. As for the calibration, either you go into each "calib-std-XX" directory and run the "reduce.sh" script, or you copy the attached "reduce_stdstar.sh" in the working directory and run it.
+3) ... and reduce this. As for the calibration, either you go into each "calib-std-XX" directory and run the "reduce.sh" script, or you copy the "reduce_stdstar.sh" in the working directory and run it.
 ```bash
 chmod +x reduce_stdstar.sh
 ./reduce_stdstar.sh
@@ -216,14 +216,14 @@ fitshdr sci_reconstructed_KMOS.2015-12-26T05\:56\:49.884-sci.fits | grep -E "ARM
 
 3) This will print the list of the IFUs "ARMx" (where "x" is the IFU ID) and the corresponding targets. From there, identify the name of your helper targets. You may have to repeat the above command for another OB, if you have multiple target lists.
 
-4) Now copy the attached phy++ program "extract_ifu.cpp" into the working directory and compile it:
+4) Now copy the phy++ program "extract_ifu.cpp" into the working directory and compile it:
 ```bash
 cphy++ optimize extract_ifu.cpp
 ```
 
 This tool extracts the IFUs given their target name, since I couldn't find a way to do it with the pipeline.
 
-5) Then copy the attached "collapse_helpers.sh" script into the working directory, and open it with your text editor. Make sure that: a) `GRATING` has the correct value, b) `HELPERS` contains the full list of the helper target names you want to reduce, with format "[name1,name2,name3,etc]" (no spaces!) and c) all your science OBs are listed into `SCIS`.
+5) Then copy the "collapse_helpers.sh" script into the working directory, and open it with your text editor. Make sure that: a) `GRATING` has the correct value, b) `HELPERS` contains the full list of the helper target names you want to reduce, with format "[name1,name2,name3,etc]" (no spaces!) and c) all your science OBs are listed into `SCIS`.
 
 6) Make it executable and run it:
 ```bash
@@ -240,7 +240,7 @@ This will open DS9 and display the continuum images of all your helper targets i
 
 ## H. Combine all OBs into master cubes
 
-1) Copy the attached "make_combine.sh" script into the working directory. Then make it executable and run it.
+1) Copy the "make_combine.sh" script into the working directory. Then make it executable and run it.
 ```bash
 chmod+x make_combine.sh
 ./make_combine.sh
@@ -251,7 +251,7 @@ The pipeline now combines all OBs and the dither patterns, taking into account t
 
 3) Now you can play with QFitsView to inspect your final data :)
 
-4) At this stage, I like to take a look at the continuum images of all the targets, to have an idea of what is going on. To automatically generate these images, create a new directory inside "sci-master", for example "continuum", go there and copy the attached "make_collapsed.sh" script. Open it with your text editor and make sure that the grating is correct. Then make it executable and run it, then run "reduce.sh". For each data cube, it will create an "*_img_cont.fits" file with the continuum image. You can then open them all at once in DS9:
+4) At this stage, I like to take a look at the continuum images of all the targets, to have an idea of what is going on. To automatically generate these images, create a new directory inside "sci-master", for example "continuum", go there and copy the "make_collapsed.sh" script. Open it with your text editor and make sure that the grating is correct. Then make it executable and run it, then run "reduce.sh". For each data cube, it will create an "*_img_cont.fits" file with the continuum image. You can then open them all at once in DS9:
 ```bash
 ds9 *_img_cont.fits
 ```
