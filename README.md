@@ -6,6 +6,8 @@ This guide will give you the simplest possible reduction, using the default beha
 
 Now are you prepared to loose a full day or more? Then let's go.
 
+NB: You can use these scripts freely. In exchange, a citation to this webpage or Schreiber et al. (in prep.) is always welcome!
+
 ## A. Prepare your computer
 
 1) Download the ESO pipeline:
