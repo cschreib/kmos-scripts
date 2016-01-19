@@ -55,6 +55,8 @@ int main(int argc, char* argv[]) {
     };
 
     if (task == "calib") {
+        print("prepare reduction of calibration data in ", raw_dir);
+
         // DARK
         sof.open("dark.sof");
         if (!add_files(sof, "dark", "DARK")) {
@@ -138,11 +140,17 @@ int main(int argc, char* argv[]) {
             vec1b found = replicate(false, calfiles.size());
             for (auto& c : calib) {
                 vec1u idb = where(!found);
+                bool anyfound = false;
                 for (uint_t i : idb) {
                     if (file::exists(c+calfiles[i])) {
                         found[i] = true;
+                        anyfound = true;
                         file << c+calfiles[i] << " " << calcat[i] << "\n";
                     }
+                }
+
+                if (!anyfound) {
+                    warning("no calibration data taken from calibration set ", c);
                 }
             }
 
@@ -159,13 +167,9 @@ int main(int argc, char* argv[]) {
             return true;
         };
 
-        sof << calib+"xcal_"+grating+".fits        XCAL\n";
-        sof << calib+"ycal_"+grating+".fits        YCAL\n";
-        sof << calib+"lcal_"+grating+".fits        LCAL\n";
-        sof << calib+"master_flat_"+grating+".fits MASTER_FLAT\n";
-        sof << calib+"illum_corr_"+grating+".fits  ILLUM_CORR\n";
-
         if (task == "stdstar") {
+            print("prepare reduction of standard star in ", raw_dir);
+
             sof.open("stdstar.sof");
             if (!add_files(sof, "object-sky-std-flux", "STD")) {
                 error("cannot proceed");
@@ -195,6 +199,8 @@ int main(int argc, char* argv[]) {
             main_file << "esorex kmos_std_star -save_cubes stdstar.sof\n";
             add_stop_fail(main_file);
         } else if (task == "sci") {
+            print("prepare reduction of science frames in ", raw_dir);
+
             sof.open("sci.sof");
             if (!add_files(sof, "sci", "SCIENCE")) {
                 error("cannot proceed");
@@ -220,6 +226,8 @@ int main(int argc, char* argv[]) {
             add_stop_fail(main_file);
         }
     } else if (task == "helpers") {
+        print("prepare reduction of helper targets in ", raw_dir);
+
         vec1s dithers = raw_dir+file::list_files(raw_dir+"*.fits");
         inplace_sort(dithers);
 
