@@ -24,7 +24,7 @@ export KMOS_CALIB_DIR="/home/cschreib/programming/kmos/calib/kmos-1.3.14/cal/"
 4) Install the QFitsView tools:
 http://www.mpe.mpg.de/~ott/dpuser/qfitsview.html
 
-5) Some of the scripts I introduce below are written in C++ and use the phy++ library I developed during my PhD. To install it, follow the following instructions:
+5) Some of the scripts in this suite are written in C++ and use the phy++ library I developed during my PhD. To install it, follow the following instructions:
 - Download this: https://github.com/cschreib/phypp/archive/master.tar.gz
 - Extract it into some temporary directory.
 - Make a new directory there called "build" and go there.
@@ -32,8 +32,6 @@ http://www.mpe.mpg.de/~ott/dpuser/qfitsview.html
 - Call `cmake ../` (NB: you need to install CMake for this to work)
 - Then call `make`, and `sudo make install`.
 - Make sure to follow the last instructions that were printed in the terminal ("sourcing" the file ".phypprc")
-
-6) Attached is a tar.gz archive containing the scripts I use. Extract it somewhere, wherever. We will copy the scripts one by one in their correct directories later on.
 
 ## B. Prepare the data
 
