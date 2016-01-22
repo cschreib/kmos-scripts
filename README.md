@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This guide will give you the simplest possible reduction, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own. For example, you can improve the sky subtraction of each OB by median-subtracting the IFUs at each wavelengths (if you only care about line detections, and less about the actual fluxes), or re-calibrate the positional shifts of the dithering patterns and individual OBs by measuring the position of helper stars, and apply those shifts to the final reconstructed cubes. This is not covered here, there is too much already ;)
+This guide will give you the simplest possible reduction, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own: the last sections describe some improvements over the standard reduction.
 
 Now are you prepared to loose a full day or more? Then let's go.
 
@@ -68,7 +68,7 @@ For one of our KMOS run, if I do this, I get 6 OBs, 4 calibration sets and 5 sta
 
 1) Then the boring part... Reducing the calibration data. Make sure that all the files that you manipulated in the previous step are stored in a separate and safe directory. Say, `/home/cschreib/data/kmos/`. To keep things clean, create a new directory, for example `/home/cschreib/data/kmos/reduced/`. I'll call this the "working directory", and the rest of the work will be done here in order to avoid touching the raw data by accident.
 
-2) To make the task a bit simpler I have created a script to automatize most of the process. It is called "reduce.cpp". Copy it inside the working folder and compile it:
+2) To make the task a bit simpler I have created a script to automatize most of the process. It is called "reduce.cpp". Copy this file inside the working folder and compile it:
 ```bash
 cphy++ optimize reduce.cpp
 ```
@@ -158,7 +158,9 @@ chmod +x reduce_stdstar.sh
 ./reduce_stdstar.sh
 ```
 
-4) If you wish you can inspect the result of this reduction, to see if everything went well. In each "calib-std-XX" directory the pipeline produces several files, including the full KMOS spectral cube, the extracted spectrum, and the continuum image. Use QFitsView to inspect those.
+4) I advise you to inspect the result of this reduction, to see if everything went well. In each "calib-std-XX" directory the pipeline produces several files, including the full KMOS spectral cube, the extracted spectrum, and the continuum image. Use QFitsView to inspect those (see next section for a short tutorial). In particular, take look at each of the 3 extensions of `std_image_XXX.fits`. These are collapsed images of the standard stars; in principle you should see a bright source at the center of the IFU.
+
+In one of the calibration set we received, two out of three of these stars were almost out of the field of view of the IFU. The reduction went without telling us, but the flux calibration was completely off, increasing the noise in the final reduced science data by up to 20%. In some other cases the star could not even be seen in the IFU. The solution in all these cases was to ignore these faulty standard stars and use another set that was observed a couple of hours after.
 
 ## E. A short tutorial to inspect a cube with QFitsView
 
@@ -207,7 +209,7 @@ chmod +x reduce_sci.sh
 
 1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude 21-19, as recommended in the manual. Additionally, some times we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction.
 
-NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that some other time. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
+NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that later on. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
 
 2) First you are going to need the names of your helper targets, as given in the KARMA file when you prepared the OBs. To find out the names of all your targets, go into, e.g., "sci-01" and run the following command on any of the FITS images:
 ```bash
@@ -233,25 +235,133 @@ chmod +x collapse_helpers.sh
 
 7) Then for each of the "sci-XX" directories, run the following command:
 ```bash
-ds9 sci-XX/helpers/*.fits
+ds9 sci-XX/helpers/sci_reconstructed_*.fits
 ```
 
-This will open DS9 and display the continuum images of all your helper targets in the OB, for each of the 4 dither positions. Offsets are normal and expected, for now just make sure that they are detected. Non-detections can be caused by a number of factors, including wrong acquisition, wrong calibration, etc. Weak detections can be caused by bad seeing.
+This will open DS9 and display the continuum images of all your helper targets in the OB, for each of the exposures. If you used dithering, offsets are normal and expected (try to match the WCS astrometry of the images), for now just make sure that they are detected. Non-detections can be caused by a number of factors, including wrong acquisition, wrong calibration, etc. We will see in later sections how to deal with these cases. Weak detections can be caused by bad seeing.
+
+8) You can also look at the combined images, merging together all the exposures of this particular OB:
+```bash
+ds9 sci-XX/helpers/combine_sci_reconstructed_*.fits
+```
 
 ## H. Combine all OBs into master cubes
 
-1) Copy the "make_combine.sh" script into the working directory. Then make it executable and run it.
+1) Copy the "fill_nan.cpp" file into the working directory and compile it:
+```bash
+cphy++ optimize fill_nan.cpp
+```
+This tool is used to flag out the wavelengths for which there is no observation. By default the pipeline puts a value of zero for these wavelengths, but it perturbs the computation of the continuum images... So this tool fills these regions with NaN pixels, which are properly treated.
+
+2) Copy the "make_combine.sh" script into the working directory. Then make it executable and run it.
 ```bash
 chmod+x make_combine.sh
 ./make_combine.sh
 ```
 
-2) This creates a new directory called "sci-master". Go there, and run the "reduce.sh" script.
-The pipeline now combines all OBs and the dither patterns, taking into account the dithering position offset. It will create two files per target, one is the actual data cube, and the other is the exposure map which tells you how many DITs were observed at each spatial position of the IFU (it is not that useful, since it is not taking into account flagged pixels etc).
+3) This creates a new directory called "sci-master" with the usual reduction script and SOF file. All the exposures of your program will be combined. If you have identified problematic exposures (for example because the helper targets could not be detected or strongly off-centered), you can remove the corresponding files from the "combine.sof" file. Then run the "reduce.sh" script.
 
-3) Now you can play with QFitsView to inspect your final data :)
+The pipeline now combines all OBs and the dither patterns, taking into account the dithering position offset. It will create two files per target, one is the actual data cube, and the other is the exposure map which tells you how many exposures contribute to each spatial position of the IFU (it is not that useful, since it is not taking into account flagged pixels etc).
 
-4) At this stage, I like to take a look at the continuum images of all the targets, to have an idea of what is going on. To automatically generate these images, create a new directory inside "sci-master", for example "continuum", go there and copy the "make_collapsed.sh" script. Open it with your text editor and make sure that the grating is correct. Then make it executable and run it, then run "reduce.sh". For each data cube, it will create an "*_img_cont.fits" file with the continuum image. You can then open them all at once in DS9:
+4) Now you can play with QFitsView to inspect your final data :)
+
+5) At this stage, I like to take a look at the continuum images of all the targets, to have an idea of what is going on. To automatically generate these images, create a new directory inside "sci-master", for example "continuum", go there and copy the "make_collapsed.sh" script. Open it with your text editor and make sure that the grating is correct. Then make it executable and run it, then run "reduce.sh". For each data cube, it will create an "*_img_cont.fits" file with the continuum image. You can then open them all at once in DS9:
 ```bash
 ds9 *_img_cont.fits
 ```
+
+Using these images you can check further the sky position accuracy of the IFUs. However, depending on how bright are your targets, they may not appear at all in the continuum. Do not let that discourage you!
+
+# I. Improve OH line subtraction
+
+In some of our programs, the OH line subtraction is not optimal because our sky exposures are taken too far apart in time compared to the science exposures. The net result is that the sky lines are shifted in wavelength and/or intensity, and leave strong residuals. A simple empirical workaround for this issue is, for each IFU and each wavelength slice, to subtract the median of the pixel values. This is assuming the target is small compared to the IFU.
+
+1) Copy the `median_sub.cpp` file into the working directory and compile it:
+```bash
+cphy++ optimize median_sub.cpp
+```
+
+2) Copy the `make_msub.sh` script into the working directory, make it executable and run it:
+```bash
+chmod +x make_msub.sh
+./make_msub.sh
+```
+
+3) This create a copy of each reduced OB, and performs the median subtraction. The original OBs are always preserved, in case you are not satisfied with the result. Then you can come back to section H to re-reduce the OBs. To do so, just open the `make_combine.sh` script and modify the last line to:
+```bash
+reduce_wrapper sci-msub
+```
+
+Then run it and see if this improves the final data quality. If not, you should probably come back to the original OBs since the median subtraction can introduce biases in the flux measurements.
+
+# J. Fix astrometry of individual exposures
+
+The point of observing helper targets (see section G) is to make sure that the IFUs are properly centered on the targets in each exposure before collapsing them into a final cube. Most of the time it will be the case. However there is always the possibility that the acquisition step (done by the observer on site) was imperfect, either because of technical issues, or because the acquisition stars you provided are faulty (inaccurate position, or proper motion). This translates into positional shifts of the helper targets into the IFU. Below is the procedure to follow to correct for these shifts.
+
+1) For each OB, go into the `helpers` directory (which was created in section G). Choose one of the helper target (I'll call it `xxx`) and open the file `shifts_applied_xxx.txt` with your text editor. This file tells you which positional shifts the pipeline expects between all the exposures of this OB, knowing which dithering pattern you chose (if any). The first exposures always has zero shifts since it is used as a reference: the values of `x` and `y` are the centering difference between that exposure and the first one, given in pixels.
+
+2) Copy the values of these shifts (omitting the first line with zero shifts) into a new file called `shifts.txt`. The format should be:
+```bash
+dx1 dy1
+dx2 dy2
+... ...
+```
+The file therefore contains two columns, with no header or comments, and one less lines than the number of exposures in the OB.
+
+3) Open the `reduce.sh` script with your text editor, and locate the group of lines that start with the comment:
+```bash
+# Full xxx
+```
+Then modify the first line below to look like this:
+```bash
+esorex kmos_combine -method='user' -filename='shifts.txt' -cmethod='median' -name='xxx' combine.sof
+```
+
+4) This particular step is just a check to make sure you are doing everything correctly. You don't need to do it, and if you do, just do it for the first OB. Make a copy of the `combine_sci_reconstructed_xxx_img_cont.fits` file associated to your chosen helper target. Then run `reduce.sh` and make sure that the new `combine_sci_reconstructed_xxx_img_cont.fits` file shows the same image as the old one. Indeed, we applied manually the same shifts than the one calculated by the pipeline. If the images differ, then you have incorrectly written your `shifts.txt` file.
+
+5) Now we will determine the real position shifts from the reduced images. Open the exposures with DS9:
+```bash
+ds9 *_img_cont-xxx.fits
+```
+
+6) Select the first frame, zoom to see it better, and change the contrast so that the helper target is clearly visible. Match these parameters to the other frames using  `Frame -> Match -> Frame -> WCS`, `Frame -> Match -> Scale` and `Frame -> Match -> Color bar`.
+
+8) Now, in the first frame, draw a circular region centered on the helper target and copy this region into the other frames. If the exposures are correctly aligned with one another, the circular region should fall exactly on top of your helper target in all exposures (within one pixel or less). If this is the case, there is nothing to do and you can go to the next OB.
+
+9) Else, you need to find the correct shifts. This is rather simple: first go to the first frame, double-click the circular region and note down its physical center coordinates (i.e., change `fk5` into `Physical`), I'll call them `x0` and `y0`. Then, for each of the other exposures, move the circular region to match the actual centroid of your helper target, and look at the resulting physical coordinates `xi` and `yi`. The shift is obtained simply by computing `xi - x0` and `y0 - yi` (sic). Use these values to replace the corresponding line in the `shift.txt` file.
+
+10) Now do the procedure of step (4) above and compare the image of your helper target after and before applying the custom shifts. If you did well, the peak flux of the helper target should have increased, since its profile is less blurred by the position uncertainty. If this is not the case, then you may have computed the wrong shifts, or used the wrong order for the exposures.
+
+11) Once you have applied this procedure for all the OBs, there should be a `shifts.txt` file in each of the `helpers` subdirectory, even if you kept the original shifts proposed by the pipeline. Now that each exposures have a correct relative astrometry within their OB, we need to check the relative astrometry between the different OBs. To do so, navigate back to the working directory and open all the combined images of your helper target in all OBs at once (don't forget to edit the `xxx`):
+```bash
+ds9 $(find | cat | sort | grep "helpers/combine_sci_reconstructed_xxx_img_cont.fits")
+```
+
+12) Repeat step (6) above to match all the frames.
+
+13) In each frame, create a circular region centered on the peak of emission of your helper target. Open a new text file called `centroid_helper.txt` and note down the RA and Dec position of the center of this circle, in degrees, and in the right order (i.e., first frame first). If, for some reason, you cannot find your helper target in one of the OB, just write random coordinates: we will deal with this later on. The format is:
+```bash
+ra1 dec1
+ra2 dec2
+... ...
+```
+
+14) In the working directory, create a new directory called `sci-shift-master` and move the `centroid_helper.txt` file there. Also make a copy of `sci-master/reduce.sh` there and open this copy in your text editor. Change the first line to look like:
+```bash
+esorex kmos_combine -edge_nan -method='user' -filename='shifts.txt' combine.sof
+```
+
+15) Now copy the file `make_shifts.cpp` there and compile it:
+```bash
+cphy++ optimize make_shifts.cpp
+```
+
+16) This script will compile together all your previous shift measurements into a single master shift list that the pipeline can use. You call it this way:
+```bash
+./make_shifts "../sci-" helper=xxx
+```
+Make sure to replace `xxx` with the name of your helper target, and if needed change `"../sci-"` to match the starting pattern of the directories of your reduced OBs. At this stage, you can also exclude one or several OBs from the reduction, in particular if you failed to detect your helper target or if the data quality is bad.
+
+This will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the other targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts.
+
+17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
