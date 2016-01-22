@@ -1,8 +1,8 @@
-# Instructions for basic reduction
+# Instructions for basic and advanced reduction
 
 ## Introduction
 
-This guide will give you the simplest possible reduction, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own: the last sections describe some improvements over the standard reduction.
+This guide will teach you how to obtain the simplest possible reduction of your VLT-KMOS data, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own: the last sections describe some improvements over the standard reduction.
 
 Now are you prepared to loose a full day or more? Then let's go.
 
