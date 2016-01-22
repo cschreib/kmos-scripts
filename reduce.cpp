@@ -95,6 +95,11 @@ int main(int argc, char* argv[]) {
         // raw data and existing calibration to use. This is documented in the KMOS
         // pipeline manual.
 
+        if (grating.empty()) {
+            error("please indicate the observing band: grating=... (example: grating=HHH)");
+            return 1;
+        }
+
         print("prepare reduction of calibration data in ", raw_dir);
 
         // DARK
@@ -184,6 +189,11 @@ int main(int argc, char* argv[]) {
 
         if (calib.empty()) {
             error("please provide the reduced calibration directory(ies): calib=...");
+            return 1;
+        }
+
+        if (grating.empty()) {
+            error("please indicate the observing band: grating=... (example: grating=HHH)");
             return 1;
         }
 
@@ -348,6 +358,11 @@ int main(int argc, char* argv[]) {
         // --------------------------------------------
 
         // This task works on the output of "combine".
+
+        if (grating.empty()) {
+            error("please indicate the observing band: grating=... (example: grating=HHH)");
+            return 1;
+        }
 
         vec1s cubes = raw_dir+file::list_files(raw_dir+"combine_sci_reconstructed_*.fits");
         inplace_sort(cubes);
