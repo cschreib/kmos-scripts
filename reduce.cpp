@@ -324,10 +324,12 @@ int main(int argc, char* argv[]) {
 
         std::string base_dir = file::get_directory(raw_dir);
         vec1s dirs = file::list_directories(raw_dir+"*");
+        inplace_sort(dirs);
         vec1s files;
 
         for (auto& d : dirs) {
             vec1s tf = file::list_files(base_dir+d+"/sci_reconstructed_*-sci.fits");
+            inplace_sort(tf);
             append(files, base_dir+d+"/"+tf);
         }
 
