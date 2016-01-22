@@ -296,7 +296,7 @@ Then run it and see if this improves the final data quality. If not, you should 
 
 # J. Fix astrometry of individual exposures
 
-The point of observing helper targets (see section G) is to make sure that the IFUs are properly centered on the targets in each exposure before collapsing them into a final cube. Most of the time it will be the case. However there is always the possibility that the acquisition step (done by the observer on site) was imperfect, either because of technical issues, or because the acquisition stars you provided are faulty (inaccurate position, or proper motion). This translates into positional shifts of the helper targets into the IFU. Below is the procedure to follow to correct for these shifts.
+The point of observing helper targets (see section G) is to make sure that the IFUs are properly centered on the targets in each exposure before collapsing them into a final cube. Most of the time it will be the case. However there is always the possibility that the acquisition step (done by the observer on site) was imperfect, either because of technical issues, or because the acquisition stars you provided are faulty (inaccurate position, or proper motion). This translates into positional shifts of the helper targets into the IFU. Below is the procedure to follow to correct for these shifts. Steps (1) to (10) should be done for each OB of your program.
 
 1) For each OB, go into the `helpers` directory (which was created in section G). Choose one of the helper target (I'll call it `xxx`) and open the file `shifts_applied_xxx.txt` with your text editor. This file tells you which positional shifts the pipeline expects between all the exposures of this OB, knowing which dithering pattern you chose (if any). The first exposures always has zero shifts since it is used as a reference: the values of `x` and `y` are the centering difference between that exposure and the first one, given in pixels.
 
@@ -317,7 +317,7 @@ Then modify the first line below to look like this:
 esorex kmos_combine -method='user' -filename='shifts.txt' -cmethod='median' -name='xxx' combine.sof
 ```
 
-4) This particular step is just a check to make sure you are doing everything correctly. You don't need to do it, and if you do, just do it for the first OB. Make a copy of the `combine_sci_reconstructed_xxx_img_cont.fits` file associated to your chosen helper target. Then run `reduce.sh` and make sure that the new `combine_sci_reconstructed_xxx_img_cont.fits` file shows the same image as the old one. Indeed, we applied manually the same shifts than the one calculated by the pipeline. If the images differ, then you have incorrectly written your `shifts.txt` file.
+4) This particular step is just a check to make sure you are doing everything correctly. You don't need to do it, and if you do, just do it for the first OB. Make a copy of the `combine_sci_reconstructed_xxx_img_cont.fits` file associated to your chosen helper target. Then run `reduce.sh` and make sure that the new `combine_sci_reconstructed_xxx_img_cont.fits` file shows the exact same image as the old one. Indeed, we applied manually the same shifts than the one calculated by the pipeline. If the images differ, then you have incorrectly written your `shifts.txt` file.
 
 5) Now we will determine the real position shifts from the reduced images. Open the exposures with DS9:
 ```bash
@@ -328,11 +328,11 @@ ds9 *_img_cont-xxx.fits
 
 8) Now, in the first frame, draw a circular region centered on the helper target and copy this region into the other frames. If the exposures are correctly aligned with one another, the circular region should fall exactly on top of your helper target in all exposures (within one pixel or less). If this is the case, there is nothing to do and you can go to the next OB.
 
-9) Else, you need to find the correct shifts. This is rather simple: first go to the first frame, double-click the circular region and note down its physical center coordinates (i.e., change `fk5` into `Physical`), I'll call them `x0` and `y0`. Then, for each of the other exposures, move the circular region to match the actual centroid of your helper target, and look at the resulting physical coordinates `xi` and `yi`. The shift is obtained simply by computing `xi - x0` and `y0 - yi` (sic). Use these values to replace the corresponding line in the `shift.txt` file.
+9) Else, you need to find the correct shifts. This is rather simple: first go to the first frame, double-click the circular region and note down its physical center coordinates (i.e., change `fk5` into `Physical`), I'll call them `x0` and `y0`. Then, for each of the other exposures, move the circular region to match the actual centroid of your helper target, and look at the resulting physical coordinates `xi` and `yi`. The shift is obtained simply by computing `xi - x0` and `y0 - yi` (yes, this is a convention of the pipeline). Use these values to replace the corresponding line in the `shift.txt` file.
 
-10) Now do the procedure of step (4) above and compare the image of your helper target after and before applying the custom shifts. If you did well, the peak flux of the helper target should have increased, since its profile is less blurred by the position uncertainty. If this is not the case, then you may have computed the wrong shifts, or used the wrong order for the exposures.
+10) Now do the procedure of step (4) above and compare the image of your helper target after and before applying the custom shifts. If you did well, the peak flux of the helper target should have increased, since its profile is less blurred by the position uncertainty. If this is not the case, then you may have computed the wrong shifts, or used the wrong order for the exposures, or maybe the shift corrections were too small to have any measurable impact.
 
-11) Once you have applied this procedure for all the OBs, there should be a `shifts.txt` file in each of the `helpers` subdirectory, even if you kept the original shifts proposed by the pipeline. Now that each exposures have a correct relative astrometry within their OB, we need to check the relative astrometry between the different OBs. To do so, navigate back to the working directory and open all the combined images of your helper target in all OBs at once (don't forget to edit the `xxx`):
+11) Once you have applied this procedure for all the OBs, there should be a `shifts.txt` file in each of the `helpers` subdirectory, even if you kept the original shifts proposed by the pipeline. Now that each exposures have a correct relative astrometry within a given OB, we need to check the relative astrometry between the different OBs themselves. To do so, navigate back to the working directory and open all the combined images of your helper target in all OBs at once (don't forget to edit the `xxx`):
 ```bash
 ds9 $(find | cat | sort | grep "helpers/combine_sci_reconstructed_xxx_img_cont.fits")
 ```
@@ -360,8 +360,13 @@ cphy++ optimize make_shifts.cpp
 ```bash
 ./make_shifts "../sci-" helper=xxx
 ```
-Make sure to replace `xxx` with the name of your helper target, and if needed change `"../sci-"` to match the starting pattern of the directories of your reduced OBs. At this stage, you can also exclude one or several OBs from the reduction, in particular if you failed to detect your helper target or if the data quality is bad.
+Make sure to replace `xxx` with the name of your helper target, and if needed change `"../sci-"` to match the starting pattern of the directories of your reduced OBs.
 
-This will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the other targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts.
+At this stage, you can also exclude one or several OBs from the reduction, in particular if you failed to detect your helper target or if the data quality is bad. To do so, simply specify their ID in the `exclude` argument. For example, if you want to exclude the OBs `sci-03` and `sci-10`, write instead:
+```bash
+./make_shifts "../sci-" helper=xxx exclude=[3,10]
+```
+
+This program will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the missing targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts for these objects.
 
 17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
