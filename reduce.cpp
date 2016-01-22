@@ -263,6 +263,10 @@ int main(int argc, char* argv[]) {
             main_file << "# STD_STAR\n";
             main_file << "esorex kmos_std_star -save_cubes stdstar.sof\n";
             add_stop_fail(main_file);
+
+            // We add an extra step to strip the empty IFUs from the image file
+            main_file << "esorex kmo_fits_strip -empty std_image_" << grating << ".fits\n";
+            main_file << "cp strip.fits std_image_" << grating << ".fits\n";
         } else if (task == "sci") {
             print("prepare reduction of science frames in ", raw_dir);
 
