@@ -300,19 +300,33 @@ int main(int argc, char* argv[]) {
         // Obtain continuum images of helper targets
         // --------------------------------------------
 
-        // This task works on the output of the task "sci", i.e., uncollapsed IFU cubes
-        // that are stored into a single FITS file.
+        // This task works on the output of the task "sci", i.e., uncollapsed IFU
+        // cubes that are stored into a single FITS file. It does two things:
+        // 1) Extract the continuum image of helper targets for each exposure. This allows
+        //    you to check for systematic position offsets between exposures.
+        // 2) Extract the continuum image of helper targets for the combined OB, merging
+        //    all the exposures. This allows you to identify systematic position offsets
+        //    between OBs.
+
+        if (grating.empty()) {
+            error("please indicate the observing band: grating=... (example: grating=HHH)");
+            return 1;
+        }
 
         print("prepare reduction of helper targets in ", raw_dir);
 
         vec1s dithers = raw_dir+file::list_files(raw_dir+"*.fits");
         inplace_sort(dithers);
 
+        sof.open("combine.sof");
+
         for (uint_t i : range(dithers)) {
-            sof.open("cont"+strn(i+1)+".sof");
+            std::ofstream sof2("cont"+strn(i+1)+".sof");
+            sof2 << dithers[i] << "\n";
+            sof2 << kmos_calib_dir+"kmos_oh_spec_"+band+".fits\n";
+            sof2.close();
+
             sof << dithers[i] << "\n";
-            sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits\n";
-            sof.close();
 
             std::string out_file = file::remove_extension(file::get_basename(dithers[i]))+
                 "_img_cont.fits";
@@ -323,6 +337,23 @@ int main(int argc, char* argv[]) {
             main_file << "../../extract_ifu " << out_file << " names=[" <<
                 collapse(helpers, ",") << "]\n";
             main_file << "rm " << out_file << "\n\n";
+        }
+
+        sof.close();
+
+        for (std::string helper : helpers) {
+            sof.open("image"+helper+".sof");
+            sof << "combine_sci_reconstructed_" << tolower(helper) << ".fits\n";
+            sof.close();
+
+            main_file << "# Full " << helper << "\n";
+            main_file << "esorex kmos_combine -method='header' -cmethod='median' "
+                "-name='" << toupper(helper) << "' combine.sof\n";
+            main_file << "esorex kmo_make_image image"+helper+".sof\n";
+            main_file << "rm combine_sci_reconstructed_" << tolower(helper) << ".fits\n";
+            main_file << "rm exp_mask_sci_reconstructed_" << tolower(helper) << ".fits\n";
+            main_file << "mv make_image.fits combine_sci_reconstructed_" << tolower(helper)
+                << "_img_cont.fits\n\n";
         }
     } else if (task == "combine") {
         // --------------------------------------------
