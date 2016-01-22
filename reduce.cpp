@@ -352,6 +352,10 @@ int main(int argc, char* argv[]) {
         main_file << "# COMBINE\n";
         main_file << "esorex kmos_combine -edge_nan -method='header' combine.sof\n";
         add_stop_fail(main_file);
+        main_file << "for f in combine*.fits; do\n";
+        main_file << "    ../fill_nan $f\n";
+        main_file << "done\n";
+        main_file << "\n";
     } else if (task == "collapse") {
         // --------------------------------------------
         // Obtain continuum images of all science targets
