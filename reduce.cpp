@@ -271,7 +271,7 @@ int main(int argc, char* argv[]) {
             // We add an extra step to strip the empty IFUs from the image file
             main_file << "esorex  --log-file=esorex_strip.log kmo_fits_strip -empty std_image_"
                 << grating << ".fits\n";
-            main_file << "cp strip.fits std_image_" << grating << ".fits\n";
+            main_file << "mv strip.fits std_image_" << grating << ".fits\n";
         } else if (task == "sci") {
             print("prepare reduction of science frames in ", raw_dir);
 
