@@ -10,15 +10,15 @@ NB: You can use these scripts freely. In exchange, a citation to this webpage or
 
 ## A. Prepare your computer
 
-1) Download the ESO pipeline:
-ftp://ftp.eso.org/pub/dfs/pipelines/kmos/kmos-kit-1.3.14.tar.gz
+1) Download the ESO pipeline (be sure to pick up the latest version, the link below may be outdated):
+ftp://ftp.eso.org/pub/dfs/pipelines/kmos/kmos-kit-1.3.17.tar.gz
 Extract it into some temporary directory and run the "./install_pipeline" script.
 
 2) Make sure that the "bin" directory of the kmos pipeline is in your PATH so that the executables can be reached from anywhere.
 
 3) Define the Bash variable KMOS_CALIB_DIR to point to the directory of the KMOS pipeline that contains the static calibration data. This directory must contain files like "kmos_oh_spec_hk.fits". For me it is (put in .bashrc or .profile or whatever you use in Mac):
 ```bash
-export KMOS_CALIB_DIR="/home/cschreib/programming/kmos/calib/kmos-1.3.14/cal/"
+export KMOS_CALIB_DIR="/home/cschreib/programming/kmos/calib/kmos-1.3.17/cal/"
 ```
 
 4) Install the QFitsView tools:
