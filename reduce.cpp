@@ -420,7 +420,7 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# " << sid << "\n";
-            main_file << "esorex kmo_make_image cont_" << sid << ".sof\n";
+            main_file << "esorex kmo_make_image -cmethod='median' cont_" << sid << ".sof\n";
             main_file << "mv make_image.fits " << out_file << "\n\n";
         }
     } else {
