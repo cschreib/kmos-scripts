@@ -25,8 +25,9 @@ int main(int argc, char* argv[]) {
     vec1s calib;
     std::string stdstar;
     std::string grating;
+    vec1s options;
     vec1s helpers;
-    read_args(argc-2, argv+2, arg_list(calib, stdstar, grating, helpers));
+    read_args(argc-2, argv+2, arg_list(calib, stdstar, grating, helpers, options));
 
     // Extract 'simple' band ID from the grating: HKHKHK -> HK
     std::string band = tolower(grating.substr(0, grating.size()/3));
@@ -232,6 +233,8 @@ int main(int argc, char* argv[]) {
             return true;
         };
 
+        std::string baked_options = collapse(options, " ");
+
         if (task == "stdstar") {
             print("prepare reduction of standard star in ", raw_dir);
 
@@ -261,7 +264,7 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# STD_STAR\n";
-            main_file << "esorex kmos_std_star -save_cubes stdstar.sof\n";
+            main_file << "esorex kmos_std_star -save_cubes " << baked_options << " stdstar.sof\n";
             add_stop_fail(main_file);
 
             // We add an extra step to strip the empty IFUs from the image file
@@ -292,7 +295,7 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# SCI\n";
-            main_file << "esorex kmos_sci_red -no_combine -background sci.sof\n";
+            main_file << "esorex kmos_sci_red -no_combine -background " << baked_options << " sci.sof\n";
             add_stop_fail(main_file);
         }
     } else if (task == "helpers") {
@@ -300,8 +303,9 @@ int main(int argc, char* argv[]) {
         // Obtain continuum images of helper targets
         // --------------------------------------------
 
-        // This task works on the output of the task "sci", i.e., uncollapsed IFU
-        // cubes that are stored into a single FITS file. It does two things:
+        // This task does two things works on the output of the task "sci", i.e.,
+        // uncollapsed IFU cubes that are stored into a single FITS file. It does two
+        // things:
         // 1) Extract the continuum image of helper targets for each exposure. This allows
         //    you to check for systematic position offsets between exposures.
         // 2) Extract the continuum image of helper targets for the combined OB, merging
@@ -387,10 +391,7 @@ int main(int argc, char* argv[]) {
         main_file << "# COMBINE\n";
         main_file << "esorex kmos_combine -edge_nan -method='header' combine.sof\n";
         add_stop_fail(main_file);
-        main_file << "for f in combine*.fits; do\n";
-        main_file << "    ../fill_nan $f\n";
-        main_file << "done\n";
-        main_file << "\n";
+        main_file << "../flag_nan.sh\n";
     } else if (task == "collapse") {
         // --------------------------------------------
         // Obtain continuum images of all science targets
