@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
         sof.close();
 
         main_file << "# DARK\n";
-        main_file << "esorex --suppress-prefix=TRUE kmos_dark dark.sof\n";
+        main_file << "esorex --log-file=esorex_dark.log --suppress-prefix=TRUE kmos_dark dark.sof\n";
         add_stop_fail(main_file);
 
         // FLAT
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
         sof.close();
 
         main_file << "# FLAT\n";
-        main_file << "esorex --suppress-prefix=TRUE kmos_flat flat.sof\n";
+        main_file << "esorex --log-file=esorex_flat.log --suppress-prefix=TRUE kmos_flat flat.sof\n";
         add_stop_fail(main_file);
 
         // WAVE_CAL
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
         sof.close();
 
         main_file << "# WAVE_CAL\n";
-        main_file << "esorex --suppress-prefix=TRUE kmos_wave_cal wave_cal.sof\n";
+        main_file << "esorex --log-file=esorex_wave.log --suppress-prefix=TRUE kmos_wave_cal wave_cal.sof\n";
         add_stop_fail(main_file);
 
         // ILLUM
@@ -171,7 +171,7 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# ILLUM\n";
-            main_file << "esorex kmos_illumination illum.sof\n";
+            main_file << "esorex  --log-file=esorex_illum.log kmos_illumination illum.sof\n";
             add_stop_fail(main_file);
         }
     } else if (task == "stdstar" || task == "sci") {
@@ -264,11 +264,13 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# STD_STAR\n";
-            main_file << "esorex kmos_std_star -save_cubes " << baked_options << " stdstar.sof\n";
+            main_file << "esorex  --log-file=esorex_stdstar.log kmos_std_star -save_cubes "
+                << baked_options << " stdstar.sof\n";
             add_stop_fail(main_file);
 
             // We add an extra step to strip the empty IFUs from the image file
-            main_file << "esorex kmo_fits_strip -empty std_image_" << grating << ".fits\n";
+            main_file << "esorex  --log-file=esorex_strip.log kmo_fits_strip -empty std_image_"
+                << grating << ".fits\n";
             main_file << "cp strip.fits std_image_" << grating << ".fits\n";
         } else if (task == "sci") {
             print("prepare reduction of science frames in ", raw_dir);
@@ -295,7 +297,8 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# SCI\n";
-            main_file << "esorex kmos_sci_red -no_combine -background " << baked_options << " sci.sof\n";
+            main_file << "esorex  --log-file=esorex_sci.log kmos_sci_red -no_combine "
+                "-background " << baked_options << " sci.sof\n";
             add_stop_fail(main_file);
         }
     } else if (task == "helpers") {
@@ -351,7 +354,8 @@ int main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# Full " << helper << "\n";
-            main_file << "esorex kmos_combine -method='header' -cmethod='median' "
+            main_file << "esorex --log-file=esorex_combine_" << tolower(helper) <<
+                ".log kmos_combine -method='header' -cmethod='median' "
                 "-name='" << toupper(helper) << "' combine.sof\n";
             main_file << "esorex kmo_make_image image"+helper+".sof\n";
             main_file << "rm combine_sci_reconstructed_" << tolower(helper) << ".fits\n";
@@ -389,7 +393,7 @@ int main(int argc, char* argv[]) {
         sof.close();
 
         main_file << "# COMBINE\n";
-        main_file << "esorex kmos_combine -edge_nan -method='header' combine.sof\n";
+        main_file << "esorex  --log-file=esorex_combine.log kmos_combine -edge_nan -method='header' combine.sof\n";
         add_stop_fail(main_file);
         main_file << "../flag_nan.sh\n";
     } else if (task == "collapse") {
