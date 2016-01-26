@@ -45,7 +45,7 @@ for f in *.Z; do gzip -d $f; done
 ophy++ rename ./
 ```
 
-  Names:
+Names:
   - `*sci.fits`: science images (for both A and B)
   - `*acq.fits`: acquisition images (bright stars used to position the telescope before the science runs)
   - `*sky.fits`: sky images (never used)
@@ -207,7 +207,7 @@ chmod +x reduce_sci.sh
 
 ## G. Check for the detection of helper targets
 
-1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude 21-19, as recommended in the manual. Additionally, some times we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction.
+1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Additionally, some times we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction. If you did not observe specific targets for this purpose, you can also use one of your sience targets provided it at least as bright in the NIR continuum and not too extended.
 
 NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that later on. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
 
@@ -238,11 +238,20 @@ chmod +x collapse_helpers.sh
 ds9 sci-XX/helpers/sci_reconstructed_*.fits
 ```
 
-This will open DS9 and display the continuum images of all your helper targets in the OB, for each of the exposures. If you used dithering, offsets are normal and expected (try to match the WCS astrometry of the images), for now just make sure that they are detected. Non-detections can be caused by a number of factors, including wrong acquisition, wrong calibration, etc. We will see in later sections how to deal with these cases. Weak detections can be caused by bad seeing.
+This will open DS9 and display the continuum images of all your helper targets in the OB, for each of the exposures. If you used dithering, offsets are normal and expected (try to match the WCS astrometry of the images), for now just make sure that they are detected. Non-detections can be caused by a number of factors, including wrong acquisition. We will see in section (J) how to deal with these cases (do not bother doing it right now). Weak detections can be caused by bad seeing.
 
-8) You can also look at the combined images, merging together all the exposures of this particular OB:
+9) You can also look at the combined images, merging together all the exposures of this particular OB:
 ```bash
 ds9 sci-XX/helpers/combine_sci_reconstructed_*.fits
+
+10) Using these combined images, another good test to do is to pick one helper target in particular and look at its continuum images in all the OBs of your program at onces. Assuming you chose the target whose name is `xxx`, run the following command from the working directory:
+```bash
+ds9 $(find | cat | sort | grep "helpers/combine_sci_reconstructed_xxx_img_cont.fits")
+```
+
+There, issues that you may notice concern the flux calibration and OH line subtraction. If you find that some of your OBs have much higher/lower noise and flux than the others, this may be indicative that the standard stars used for the flux calibration were improperly reduced. In this case you will want to check the photometric zero point computed by the pipeline and see if it deviates substantially from the other exposures.
+
+You can also observe important background level variations, with some exposures having significantly negative or positive background. This is typical when OH line subtraction was imperfect, and I give a simplistic way to fix that later in section (I). But before you fix this, it is good to first perform a naive reduction without trying to fix anything, and this is what we do in the next section.
 ```
 
 ## H. Combine all OBs into master cubes
@@ -251,7 +260,7 @@ ds9 sci-XX/helpers/combine_sci_reconstructed_*.fits
 ```bash
 cphy++ optimize fill_nan.cpp
 ```
-This tool is used to flag out the wavelengths for which there is no observation. By default the pipeline puts a value of zero for these wavelengths, but it perturbs the computation of the continuum images... So this tool fills these regions with NaN pixels, which are properly treated.
+This tool is used to flag out the wavelengths for which there is no observation. By default the pipeline puts a value of zero for these wavelengths, but these zeroes are included in the computation of the continuum images... So this tool fills these regions with NaN pixels, which are properly discarded by the pipeline.
 
 2) Copy the "make_combine.sh" script into the working directory. Then make it executable and run it.
 ```bash
@@ -270,11 +279,11 @@ The pipeline now combines all OBs and the dither patterns, taking into account t
 ds9 *_img_cont.fits
 ```
 
-Using these images you can check further the sky position accuracy of the IFUs. However, depending on how bright are your targets, they may not appear at all in the continuum. Do not let that discourage you!
+Using these images you can check further the sky position accuracy of the IFUs. However, depending on how bright your targets are, they may not appear at all in the continuum. Do not let that discourage you!
 
 # I. Improve OH line subtraction
 
-In some of our programs, the OH line subtraction is not optimal because our sky exposures are taken too far apart in time compared to the science exposures. The net result is that the sky lines are shifted in wavelength and/or intensity, and leave strong residuals. A simple empirical workaround for this issue is, for each IFU and each wavelength slice, to subtract the median of the pixel values. This is assuming the target is small compared to the IFU.
+In some of our programs, the OH line subtraction is not optimal because our sky exposures are taken too far apart in time compared to the science exposures. The net result is that the sky lines are shifted in wavelength and/or intensity, and leave strong residuals. A simple empirical workaround for this issue is, for each IFU and each wavelength slice, to subtract the median of the pixel values. This is assuming the target is small compared to the IFU (for galaxies which are too large, part or most of their flux will be lost, so keep that in mind).
 
 1) Copy the `median_sub.cpp` file into the working directory and compile it:
 ```bash
