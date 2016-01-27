@@ -363,6 +363,7 @@ This will open DS9 and display the continuum images of all your helper targets i
 9) You can also look at the combined images, merging together all the exposures of this particular OB:
 ```bash
 ds9 sci-XX/helpers/combine_sci_reconstructed_*.fits
+```
 
 10) Using these combined images, another good test to do is to pick one helper target in particular and look at its continuum images in all the OBs of your program at onces. Assuming you chose the target whose name is `xxx`, run the following command from the working directory:
 ```bash
