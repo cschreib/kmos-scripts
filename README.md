@@ -60,9 +60,127 @@ Names:
 
 "XX" is a number starting from "01" and increasing for each group. Basically, you want to group together the calibration files that were taken on the same day, and science images that belong to a single OB. I decide this based on the name of the files, which contains the date of observation. Be careful that, since observations are done in the night, sometime the date can change in the middle of an OB or calibration set ;) Similarly, sometimes two OBs can be executed on the same day. Be sure to check the hours and minutes, and that each OB contains the right number of "sci" images (e.g., for us we have an AABAA pattern, so 5 "sci" images per OB). Each OB is typically preceded by several "acq" frames, sometimes "sky" as well. Standard stars calibration sets are always made of 4 "std-flux" images.
 
-Other calibration sets can contain various types of images, not always the same. Usually this is 5 "dark", 3 "flat-off", 18 "flat-lamp", 1 "wave-off" and 6 "wave-lamp". Often there are 10 "dark", but the pipeline can only handle 5, so I only keep the 5 latest and place the earliest 5 into a sub-directory "unused" (this is important else you can get errors in the pipeline). In addition, sometimes you have 4 "flat-sky" a bit before the calibration set. I don't know how standard this is, so I did not automatize this part.
+Other calibration sets can contain various types of images, not always the same. Usually this is 5 "dark", 3 "flat-off", 18 "flat-lamp", 1 "wave-off" and 6 "wave-lamp". Often there are 10 "dark", but the pipeline can only handle 5, so I only keep the 5 latest and place the earliest 5 into a sub-directory "unused" (this is important else you can get errors in the pipeline). In addition, sometimes you have 4 "flat-sky" a bit before the calibration set.
 
-For one of our KMOS run, if I do this, I get 6 OBs, 4 calibration sets and 5 standard star calibration sets.
+I don't know how standard all of this is, so I did not automatize this part. Here is an exerpt of the directory structure for one of our own programs:
+```bash
+ + calib-01/
+ - - KMOS.2014-10-05T20:56:06.900-dark.fits
+ - - KMOS.2014-10-05T20:57:14.819-dark.fits
+ - - KMOS.2014-10-05T20:58:22.630-dark.fits
+ - - KMOS.2014-10-05T20:59:31.072-dark.fits
+ - - KMOS.2014-10-05T21:00:38.882-dark.fits
+ - - KMOS.2014-10-05T22:36:18.174-flat-sky.fits
+ - - KMOS.2014-10-05T22:36:50.848-flat-sky.fits
+ - - KMOS.2014-10-05T22:37:07.382-flat-sky.fits
+ - - KMOS.2014-10-05T22:37:22.459-flat-sky.fits
+ - - KMOS.2014-10-06T10:49:52.240-flat-off.fits
+ - - KMOS.2014-10-06T10:50:02.071-flat-off.fits
+ - - KMOS.2014-10-06T10:50:13.116-flat-off.fits
+ - - KMOS.2014-10-06T10:53:24.259-flat-lamp.fits
+ - - KMOS.2014-10-06T10:53:35.191-flat-lamp.fits
+ - - KMOS.2014-10-06T10:53:46.146-flat-lamp.fits
+ - - KMOS.2014-10-06T10:54:47.996-flat-lamp.fits
+ - - KMOS.2014-10-06T10:54:58.914-flat-lamp.fits
+ - - KMOS.2014-10-06T10:55:08.748-flat-lamp.fits
+ - - KMOS.2014-10-06T10:56:10.491-flat-lamp.fits
+ - - KMOS.2014-10-06T10:56:21.556-flat-lamp.fits
+ - - KMOS.2014-10-06T10:56:32.503-flat-lamp.fits
+ - - KMOS.2014-10-06T10:57:34.377-flat-lamp.fits
+ - - KMOS.2014-10-06T10:57:45.316-flat-lamp.fits
+ - - KMOS.2014-10-06T10:57:56.322-flat-lamp.fits
+ - - KMOS.2014-10-06T10:58:58.075-flat-lamp.fits
+ - - KMOS.2014-10-06T10:59:09.118-flat-lamp.fits
+ - - KMOS.2014-10-06T10:59:20.035-flat-lamp.fits
+ - - KMOS.2014-10-06T11:00:21.786-flat-lamp.fits
+ - - KMOS.2014-10-06T11:00:32.700-flat-lamp.fits
+ - - KMOS.2014-10-06T11:00:43.676-flat-lamp.fits
+ - - KMOS.2014-10-06T11:46:21.039-wave-off.fits
+ - - KMOS.2014-10-06T11:49:42.675-wave-lamp.fits
+ - - KMOS.2014-10-06T11:50:46.487-wave-lamp.fits
+ - - KMOS.2014-10-06T11:51:50.448-wave-lamp.fits
+ - - KMOS.2014-10-06T11:52:54.252-wave-lamp.fits
+ - - KMOS.2014-10-06T11:53:58.104-wave-lamp.fits
+ - - KMOS.2014-10-06T11:55:01.959-wave-lamp.fits
+ + calib-02/
+ - - KMOS.2014-12-11T23:23:28.670-flat-sky.fits
+ - - KMOS.2014-12-11T23:24:40.262-flat-sky.fits
+ - - KMOS.2014-12-11T23:24:58.400-flat-sky.fits
+ - - KMOS.2014-12-11T23:25:15.404-flat-sky.fits
+ - - KMOS.2014-12-12T09:42:15.623-dark.fits
+ - - KMOS.2014-12-12T09:43:23.428-dark.fits
+ - - KMOS.2014-12-12T09:44:31.209-dark.fits
+ - - KMOS.2014-12-12T09:45:39.011-dark.fits
+ - - KMOS.2014-12-12T09:46:46.841-dark.fits
+ - - KMOS.2014-12-12T15:36:46.045-flat-off.fits
+ - - KMOS.2014-12-12T15:36:57.034-flat-off.fits
+ - - KMOS.2014-12-12T15:37:07.968-flat-off.fits
+ - - KMOS.2014-12-12T15:39:26.899-flat-lamp.fits
+ - - KMOS.2014-12-12T15:39:36.698-flat-lamp.fits
+ - - KMOS.2014-12-12T15:39:47.746-flat-lamp.fits
+ - - KMOS.2014-12-12T15:40:49.458-flat-lamp.fits
+ - - KMOS.2014-12-12T15:41:00.535-flat-lamp.fits
+ - - KMOS.2014-12-12T15:41:11.458-flat-lamp.fits
+ - - KMOS.2014-12-12T15:42:13.333-flat-lamp.fits
+ - - KMOS.2014-12-12T15:42:24.247-flat-lamp.fits
+ - - KMOS.2014-12-12T15:42:35.186-flat-lamp.fits
+ - - KMOS.2014-12-12T15:43:37.078-flat-lamp.fits
+ - - KMOS.2014-12-12T15:43:47.999-flat-lamp.fits
+ - - KMOS.2014-12-12T15:43:58.966-flat-lamp.fits
+ - - KMOS.2014-12-12T15:45:00.677-flat-lamp.fits
+ - - KMOS.2014-12-12T15:45:11.711-flat-lamp.fits
+ - - KMOS.2014-12-12T15:45:22.903-flat-lamp.fits
+ - - KMOS.2014-12-12T15:46:24.647-flat-lamp.fits
+ - - KMOS.2014-12-12T15:46:35.608-flat-lamp.fits
+ - - KMOS.2014-12-12T15:46:45.410-flat-lamp.fits
+ - - KMOS.2014-12-12T16:08:15.344-wave-off.fits
+ - - KMOS.2014-12-12T16:11:36.775-wave-lamp.fits
+ - - KMOS.2014-12-12T16:12:40.642-wave-lamp.fits
+ - - KMOS.2014-12-12T16:13:44.439-wave-lamp.fits
+ - - KMOS.2014-12-12T16:14:48.236-wave-lamp.fits
+ - - KMOS.2014-12-12T16:15:52.025-wave-lamp.fits
+ - - KMOS.2014-12-12T16:16:55.805-wave-lamp.fits
+ + calib-std-01/
+ - - KMOS.2014-10-10T09:18:24.913-object-sky-std-flux.fits
+ - - KMOS.2014-10-10T09:19:54.063-object-sky-std-flux.fits
+ - - KMOS.2014-10-10T09:21:19.090-object-sky-std-flux.fits
+ - - KMOS.2014-10-10T09:22:44.392-object-sky-std-flux.fits
+ + calib-std-02/
+ - - KMOS.2014-11-25T04:06:57.978-object-sky-std-flux.fits
+ - - KMOS.2014-11-25T04:08:25.027-object-sky-std-flux.fits
+ - - KMOS.2014-11-25T04:09:50.356-object-sky-std-flux.fits
+ - - KMOS.2014-11-25T04:11:16.333-object-sky-std-flux.fits
+ + sci-01/
+ - - KMOS.2014-11-25T05:35:39.767-acq.fits
+ - - KMOS.2014-11-25T05:35:39.767.NL.txt
+ - - KMOS.2014-11-25T05:35:39.767.xml
+ - - KMOS.2014-11-25T05:38:19.499-acq.fits
+ - - KMOS.2014-11-25T05:38:19.499.NL.txt
+ - - KMOS.2014-11-25T05:38:19.499.xml
+ - - KMOS.2014-11-25T05:43:42.076-sci.fits
+ - - KMOS.2014-11-25T05:43:42.076.NL.txt
+ - - KMOS.2014-11-25T05:43:42.076.xml
+ - - KMOS.2014-11-25T05:54:19.911-sci.fits
+ - - KMOS.2014-11-25T06:04:38.076-sci.fits
+ - - KMOS.2014-11-25T06:14:56.200-sci.fits
+ - - KMOS.2014-11-25T06:25:09.193-sci.fits
+ + sci-02/
+ - - KMOS.2014-11-25T07:09:51.615-acq.fits
+ - - KMOS.2014-11-25T07:09:51.615.NL.txt
+ - - KMOS.2014-11-25T07:09:51.615.xml
+ - - KMOS.2014-11-25T07:11:28.902-acq.fits
+ - - KMOS.2014-11-25T07:11:28.902.NL.txt
+ - - KMOS.2014-11-25T07:11:28.902.xml
+ - - KMOS.2014-11-25T07:16:38.243-sci.fits
+ - - KMOS.2014-11-25T07:16:38.243.NL.txt
+ - - KMOS.2014-11-25T07:16:38.243.xml
+ - - KMOS.2014-11-25T07:27:17.464-sci.fits
+ - - KMOS.2014-11-25T07:37:35.540-sci.fits
+ - - KMOS.2014-11-25T07:47:53.040-sci.fits
+ - - KMOS.2014-11-25T07:58:06.107-sci.fits
+```
+
+For this particular KMOS program, I get in the end 6 OBs, 4 calibration sets and 5 standard star calibration sets (I show only two of each above, since the whole list would otherwise be very long).
 
 ## C. Reduce the calibration data
 
