@@ -365,14 +365,14 @@ This will open DS9 and display the continuum images of all your helper targets i
 ds9 sci-XX/helpers/combine_sci_reconstructed_*.fits
 ```
 
-10) Using these combined images, another good test to do is to pick one helper target in particular and look at its continuum images in all the OBs of your program at onces. Assuming you chose the target whose name is `xxx`, run the following command from the working directory:
+10) Using these combined images, another good test to do is to pick one helper target in particular and look at its continuum images in all the OBs of your program at once. Assuming you chose the target whose name is `xxx`, run the following command from the working directory:
 ```bash
 ds9 $(find | cat | sort | grep "helpers/combine_sci_reconstructed_xxx_img_cont.fits")
 ```
 
 There, issues that you may notice concern the flux calibration and OH line subtraction. If you find that some of your OBs have much higher/lower noise and flux than the others, this may be indicative that the standard stars used for the flux calibration were improperly reduced. In this case you will want to check the photometric zero point computed by the pipeline and see if it deviates substantially from the other exposures.
 
-You can also observe important background level variations, with some exposures having significantly negative or positive background. This is typical when OH line subtraction was imperfect, and I give a simplistic way to fix that later in section (I). But before you fix this, it is good to first perform a naive reduction without trying to fix anything, and this is what we do in the next section.
+You can also observe important background level variations, with some exposures having significantly negative or positive background. This is typical when OH line subtraction was imperfect, and I give a simplistic way to fix that later in section (I). But before you fix this, it is good to first perform a naive reduction without trying to fix anything, and this is what we do in the next section. This naive reduction will provide a baseline, which you can use to check if and how much you improve the situation by tweaking the reduction.
 
 ## H. Combine all OBs into master cubes
 
@@ -446,7 +446,7 @@ Then modify the first line below to look like this:
 esorex kmos_combine -method='user' -filename='shifts.txt' -cmethod='median' -name='xxx' combine.sof
 ```
 
-4) This particular step is just a check to make sure you are doing everything correctly. You don't need to do it, and if you do, just do it for the first OB. Make a copy of the `combine_sci_reconstructed_xxx_img_cont.fits` file associated to your chosen helper target. Then run `reduce.sh` and make sure that the new `combine_sci_reconstructed_xxx_img_cont.fits` file shows the exact same image as the old one. Indeed, we applied manually the same shifts than the one calculated by the pipeline. If the images differ, then you have incorrectly written your `shifts.txt` file.
+4) This particular step is just a check to make sure you are doing everything correctly. You don't need to do it, and if you do, just do it for the first OB. Make a copy of the `combine_sci_reconstructed_xxx_img_cont.fits` file associated to your chosen helper target. Then run `reduce.sh` and make sure that the new `combine_sci_reconstructed_xxx_img_cont.fits` file shows the exact same image as the copy you just made. Indeed, we applied manually the same shifts than the ones calculated by the pipeline. If the images differ, then you have incorrectly written your `shifts.txt` file.
 
 5) Now we will determine the real position shifts from the reduced images. Open the exposures with DS9:
 ```bash
@@ -479,24 +479,27 @@ ra2 dec2
 ```bash
 esorex kmos_combine -edge_nan -method='user' -filename='shifts.txt' combine.sof
 ```
+I.e., change `method` from `'header'` to `'user'` and add `-filename='shifts.txt'`.
 
 15) Now copy the file `make_shifts.cpp` there and compile it:
 ```bash
 cphy++ optimize make_shifts.cpp
 ```
 
-16) This script will compile together all your previous shift measurements into a single master shift list that the pipeline can use. You call it this way:
+16) This script will compile together all your previous shift measurements into a single "master shift list" that the pipeline can use. You call it this way:
 ```bash
 ./make_shifts "../sci-" helper=xxx
 ```
 Make sure to replace `xxx` with the name of your helper target, and if needed change `"../sci-"` to match the starting pattern of the directories of your reduced OBs.
+
+This program will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the missing targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts for these objects.
 
 At this stage, you can also exclude one or several OBs from the reduction, in particular if you failed to detect your helper target or if the data quality is bad. To do so, simply specify their ID in the `exclude` argument. For example, if you want to exclude the OBs `sci-03` and `sci-10`, write instead:
 ```bash
 ./make_shifts "../sci-" helper=xxx exclude=[3,10]
 ```
 
-This program will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the missing targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts for these objects.
+Now that we are applying position shifts, if you want to exclude OBs it is important to do it with the method above, rather than removing manually the files from the SOF file. Indeed, the pipeline links directly the lines in the SOF file to the lines in the `shifts.txt` file, and furthermore all shifts must be provided relative to the first exposure of the first OB. So if you exclude the OB `01`, for example, you need to recompute all the shifts; `make_shifts` does that for you.
 
 17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
 
@@ -504,9 +507,9 @@ This program will create the `shifts.txt` file and the SOF file for the pipeline
 
 To extract spectra from the cubes you can use QFitView (see section E), which only allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline and the recipe `kmos_extract_spec` is more flexible, as it allows you to use arbitrary masks. But you may want something more...
 
-There are cases where you need to de-blend two close objects in the IFU and extract both their spectra. You may also want to take into account a uniform background level. To do this, you can use the `multispecfit.cpp` tool. Given a fixed set of 2D models, it will find the optimal linear combination of these models to describe the content of the KMOS data cube at each wavelength, independently. It will then give you the spectrum associated to each model.
+There are cases where you need to de-blend two close objects in the IFU and extract both their spectra. You may also want to take into account a uniform background level. To do this, you can use the `multispecfit.cpp` tool. Given a fixed set of 2D models, it will find the optimal linear combination of these models to describe the content of the KMOS data cube at each wavelength, independently. It will then give you the spectrum associated to each model. Sounds interesting? Read on.
 
-1) First go into the directory where you have created your final, combined cubes in section (H). Create yourself a new directory called 'spectra'; go there and copy the `multispecfit.cpp` program and compile it:
+1) First go into the directory where you have created your final, combined cubes in section (H). Create yourself a new directory called `spectra`; go there and copy the `multispecfit.cpp` program and compile it:
 ```bash
 cphy++ optimize multispecfit.cpp
 ```
