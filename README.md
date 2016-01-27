@@ -418,6 +418,10 @@ py = reform(pp[1,*], nx, ny)
 galaxy1 = exp(-((px - 4)^2 + (py - 3)^2)/(2.0*1.2^2))
 galaxy2 = exp(-((px - 6)^2 + (py - 5)^2)/(2.0*1.2^2))
 
+; NB: The models are re-normalized internally by the tool to make sure that they contain
+; a flux of unity to start with. This means that the value of the resulting spectrum is
+; indeed the total flux corresponding to the model.
+
 ; The last step is to store these models into a cube for the program
 models = fltarr(3, nx, ny)
 models[0,*,*] = 1       ; first a constant background
