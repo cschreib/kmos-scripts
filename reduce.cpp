@@ -421,8 +421,8 @@ int main(int argc, char* argv[]) {
                 "combine_sci_reconstructed_");
 
             sof.open("cont_"+sid+".sof");
-            sof << cubes[i] << "\n";
-            sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits\n";
+            sof << cubes[i] << " COMMAND_LINE\n";
+            sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits COMMAND_LINE\n";
             sof.close();
 
             main_file << "# " << sid << "\n";
