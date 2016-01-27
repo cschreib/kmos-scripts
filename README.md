@@ -380,7 +380,7 @@ This program will create the `shifts.txt` file and the SOF file for the pipeline
 
 17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
 
-# Appendix A. Analyzing cubes.
+# Appendix A. Analyzing cubes: extracting spectra
 
 To extract spectra from the cubes you can use QFitView (see section E), which only allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline and the recipe `kmos_extract_spec` is more flexible, as it allows you to use arbitrary masks. But you may want something more...
 
