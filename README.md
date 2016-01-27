@@ -4,7 +4,7 @@
 
 This guide will teach you how to obtain the simplest possible reduction of your VLT-KMOS data, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own: the last sections describe some improvements over the standard reduction.
 
-Now are you prepared to loose a full day or more? Then let's go.
+Now are you prepared to loose a full day or more? Then let's go. The whole guide may appear very long, but there are actually very few things for you to do; although probably much more to learn if you are new to near-IR spectropy.
 
 NB: You can use these scripts freely. In exchange, a citation to this webpage or Schreiber et al. (in prep.) is always welcome!
 
@@ -290,7 +290,7 @@ In one of the calibration set we received, two out of three of these stars were 
 
 4) Now QFitsView shows you one image in the middle of the cube, the spectral element 1024 (this number can be found in a small edit box in the tool bar at the top of the window). What you usually want to do first is to display the continuum image, i.e., the sum of the cube on the wavelength axis. You can do that by choosing "Average" or "Median" in the drop down list to the right of "1024" (by default it is set to "Single"). For the standard star it doesn't change much, since the S/N is very high even for each spectral element, but for your galaxies you usually only detect them in the continuum.
 
-5) Then you can move your mouse over the image. At the bottom of the window you should see the spectrum change in real time: this is the spectrum of the pixel currently below your mouse. Since sources are usually spread over several pixels (because they are extended or because of the seeing), you usually want to average multiple neighboring pixels together. You can do that by changing the "Single pixel" (close to the spectrum) into "Circular", and increase the radius "R1" to 2 or 3 pixels. This is simply aperture photometry :) You will see that now the shape of your aperture displayed under the mouse pointer, and the spectrum is now averaged over all these pixels, enhancing the S/N.
+5) Then you can move your mouse over the image. At the bottom of the window you should see the spectrum change in real time: this is the spectrum of the pixel currently below your mouse. Since sources are usually spread over several pixels (because they are extended or because of the seeing), you usually want to average multiple neighboring pixels together. You can do that by changing the "Single pixel" (close to the spectrum) into "Circular", and increase the radius "R1" to 2 or 3 pixels. This is simply aperture photometry :) You will see now the shape of your aperture displayed under the mouse pointer, and the spectrum is now averaged over all these pixels, enhancing the S/N.
 
 6) If you want to save the spectrum to analyze it with another tool, like IDL, put your mouse where you want to extract the spectrum, then right-click and choose "Save spectrum as..." (ASCII or FITS, as you prefer).
 
@@ -298,7 +298,7 @@ In one of the calibration set we received, two out of three of these stars were 
 
 8) If you have identified a line and want to see if it is real or not, a good thing to do is to look at the "line image" of your galaxy. To do that you want to change "Average" (or "Median") into "Linemap" in the top toolbar. The current wavelength that is displayed is shown in the spectrum with a gray vertical bar. You can change the wavelength either by specifying the ID of the spectral element (default is 1024, and it goes from 1 to 2048), or by moving the slider just below.
 
-9) Once you are at the right wavelength, maybe the S/N is not very high because you are displaying only a single spectral element, while the line is spectrally extended (it has a width). You can increase the S/N by averaging multiple spectral elements at once. To do that, go to "Options -> Cube display...".  Choose "Line map", and in "Channels", increase the second value of "Central frame". The default is 1, so you only display one spectral element. You may want to try 3 or 6 or 10. This should give a better image of the line spatial profile.
+9) Once you are at the right wavelength, maybe the S/N is not very high because you are displaying only a single spectral element, while the line is spectrally extended (it has a width). You can increase the S/N by averaging multiple spectral elements at once. To do that, go to "Options -> Cube display...".  Choose "Line map", and in "Channels", increase the second value of "Central frame". The default is 1, so you only display one spectral element. You may want to try 3 or 6 or 10. This should give a better image of the line spatial profile, and may also allow you to detect the continuum emission if you choose a large enough spectral window.
 
 ## F. Reduce individual OBs
 
@@ -321,11 +321,13 @@ chmod +x reduce_sci.sh
 ./reduce_sci.sh
 ```
 
-4) Now each OB has been reduced individually, with the sky subtracted. The pipeline can recognize automatically if you have put science targets in both the A and B configurations, so you don't have anything special to do. In a next step we will merge these OBs into a single thing, but for now it is important to make sure that the reduction was successful (no bug or crash). Just go into each "sci-XX" directory: there should be `N` FITS files, corresponding to each of the `N` dither positions you specified in your OBs. Each FITS file contains 48 extensions, two per IFU (one for the flux and the other for the uncertainty). Disabled IFUs are also included here, but the extension does not contain any data. You don't need to check them one by one (see next point), just make sure the files are there.
+4) Now each OB has been reduced individually, with the sky subtracted. The pipeline can recognize automatically if you have put science targets in both the A and B configurations, so you don't have anything special to do. In a next step we will merge these OBs into a single thing, but for now it is important to make sure that the reduction was successful (no bug or crash). Just go into each "sci-XX" directory: there should be `N` FITS files, corresponding to each of the `N` exposures you specified in your OBs. Each FITS file contains 48 extensions, two per IFU (one for the flux and the other for the uncertainty). Disabled IFUs are also included here, but the extension does not contain any data. You don't need to check them one by one (see next point), for now just make sure the files are there.
+
+If there is nothing, then the reduction failed. You can inspect the content of the `esorex_sci.log` file to figure out what happened and, if possible, fix the issue.
 
 ## G. Check for the detection of helper targets
 
-1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Additionally, some times we chose to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction. If you did not observe specific targets for this purpose, you can also use one of your sience targets provided it at least as bright in the NIR continuum and not too extended.
+1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Some times we chose instead (or in addition) to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction. If you did not observe specific targets for this purpose, you can also use one of your science targets, provided it at least as bright in the NIR continuum and not too extended.
 
 NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that later on. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
 
@@ -336,7 +338,7 @@ fitshdr sci_reconstructed_KMOS.2015-12-26T05\:56\:49.884-sci.fits | grep -E "ARM
 
 3) This will print the list of the IFUs "ARMx" (where "x" is the IFU ID) and the corresponding targets. From there, identify the name of your helper targets. You may have to repeat the above command for another OB, if you have multiple target lists.
 
-4) Now copy the phy++ program "extract_ifu.cpp" into the working directory and compile it:
+4) Now copy the C++ program "extract_ifu.cpp" into the working directory and compile it:
 ```bash
 cphy++ optimize extract_ifu.cpp
 ```
@@ -370,7 +372,6 @@ ds9 $(find | cat | sort | grep "helpers/combine_sci_reconstructed_xxx_img_cont.f
 There, issues that you may notice concern the flux calibration and OH line subtraction. If you find that some of your OBs have much higher/lower noise and flux than the others, this may be indicative that the standard stars used for the flux calibration were improperly reduced. In this case you will want to check the photometric zero point computed by the pipeline and see if it deviates substantially from the other exposures.
 
 You can also observe important background level variations, with some exposures having significantly negative or positive background. This is typical when OH line subtraction was imperfect, and I give a simplistic way to fix that later in section (I). But before you fix this, it is good to first perform a naive reduction without trying to fix anything, and this is what we do in the next section.
-```
 
 ## H. Combine all OBs into master cubes
 
