@@ -329,11 +329,11 @@ int main(int argc, char* argv[]) {
 
         for (uint_t i : range(dithers)) {
             std::ofstream sof2("cont"+strn(i+1)+".sof");
-            sof2 << dithers[i] << "\n";
-            sof2 << kmos_calib_dir+"kmos_oh_spec_"+band+".fits\n";
+            sof2 << dithers[i] << " COMMAND_LINE\n";
+            sof2 << kmos_calib_dir+"kmos_oh_spec_"+band+".fits COMMAND_LINE\n";
             sof2.close();
 
-            sof << dithers[i] << "\n";
+            sof << dithers[i] << " COMMAND_LINE\n";
 
             std::string out_file = file::remove_extension(file::get_basename(dithers[i]))+
                 "_img_cont.fits";
@@ -350,7 +350,8 @@ int main(int argc, char* argv[]) {
 
         for (std::string helper : helpers) {
             sof.open("image"+helper+".sof");
-            sof << "combine_sci_reconstructed_" << tolower(helper) << ".fits\n";
+            sof << "combine_sci_reconstructed_" << tolower(helper) << ".fits COMMAND_LINE\n";
+            sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits COMMAND_LINE\n";
             sof.close();
 
             main_file << "# Full " << helper << "\n";
@@ -388,7 +389,7 @@ int main(int argc, char* argv[]) {
 
         sof.open("combine.sof");
         for (auto& f : files) {
-            sof << f << "\n";
+            sof << f << " COMMAND_LINE\n";
         }
         sof.close();
 

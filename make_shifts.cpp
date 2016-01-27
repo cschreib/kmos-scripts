@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
         }
 
         for (std::string f : files) {
-            cmb << f << "\n";
+            cmb << f << " COMMAND_LINE\n";
             ++nexp;
         }
 
