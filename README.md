@@ -379,3 +379,65 @@ At this stage, you can also exclude one or several OBs from the reduction, in pa
 This program will create the `shifts.txt` file and the SOF file for the pipeline. You can inspect these files if you wish, and then run the `reduce.sh` script. Note that this reduction may contain fewer objects than what you had in section (H). This can happen if a) you have put science targets inside the sky pointings, or b) if you have multiple target lists in your observing program. Indeed, when you provide manual position shifts, the pipeline will only reduce the exposures for which these shifts were computed (i.e., all the exposures containing your helper target). To reduce the missing targets, you will have to use another helper target that was observed simultaneously, and re-do all of this for these other exposures. If you have no other helper target, then there is nothing you can do but use the standard reduction without shifts for these objects.
 
 17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
+
+# Appendix A. Analyzing cubes.
+
+To extract spectra from the cubes you can use QFitView (see section E), which only allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline and the recipe `kmos_extract_spec` is more flexible, as it allows you to use arbitrary masks. But you may want something more...
+
+There are cases where you need to de-blend two close objects in the IFU and extract both their spectra. You may also want to take into account a uniform background level. To do this, you can use the `multispecfit.cpp` tool. Given a fixed set of 2D models, it will find the optimal linear combination of these models to describe the content of the KMOS data cube at each wavelength, independently. It will then give you the spectrum associated to each model.
+
+1) First go into the directory where you have created your final, combined cubes in section (H). Create yourself a new directory called 'spectra'; go there and copy the `multispecfit.cpp` program and compile it:
+```bash
+cphy++ optimize multispecfit.cpp
+```
+
+2) Now you want to create the models that will describe your data. The simplest and most common case is to have a uniform background and a Gaussian profile. However, to demonstrate fully the usage of the tool, I will assume that your IFU contains two small galaxies close to one another. You can easily adapt this to your own situation.
+
+3) Here is how you proceed to build the models with IDL (sorry Python folks):
+```IDL
+; Load the continuum image of your object 'xxx' just to get the right image dimensions.
+; If you know 'nx' and 'ny', you can also specify them directly
+img = mrdfits('../continuum/combine_sci_reconstructed_xxx_img_cont.fits')
+nx = n_elements(img[*,0])
+ny = n_elements(img[0,*])
+
+; Create the 'x' and 'y' pixel coordinate arrays
+pp = array_indices(img, findgen(nx, ny))
+px = reform(pp[0,*], nx, ny)
+py = reform(pp[1,*], nx, ny)
+
+; We know (for example) that the first galaxy is centered on pixels (5,4), as seen
+; in DS9 or QFitsView, while the second is centered on (7,6). Note that both DS9
+; and QFitsView use 1-based pixel coordinates (the first pixel has coordinates 1,1),
+; but here in IDL we need 0-based values, so we subtract 1 from the coordinates.
+; Lastly, we assume that both galaxies are well described with a Gaussian of width 1.2
+; pixels. It is up to you to figure out the best value, either by trying to match the
+; continuum emission, or some line map you will have previously built, or even some
+; ancillary imaging from another facility.
+
+galaxy1 = exp(-((px - 4)^2 + (py - 3)^2)/(2.0*1.2^2))
+galaxy2 = exp(-((px - 6)^2 + (py - 5)^2)/(2.0*1.2^2))
+
+; The last step is to store these models into a cube for the program
+models = fltarr(3, nx, ny)
+models[0,*,*] = 1       ; first a constant background
+models[1,*,*] = galaxy1 ; the first galaxy
+models[2,*,*] = galaxy2 ; the second galaxy
+
+; And write that down
+mwrfits, /create, models, 'combine_sci_reconstructed_xxx_models.fits'
+
+```
+
+4) Now that the models are created, we can call the program to do the fit:
+```bash
+./multispecfit ../combine_sci_reconstructed_xxx.fits combine_sci_reconstructed_xxx_models.fits suffix=[bg,gal1,gal2]
+```
+
+This will create three files:
+```bash
+combine_sci_reconstructed_xxx_bg_spec.fits
+combine_sci_reconstructed_xxx_gal1_spec.fits
+combine_sci_reconstructed_xxx_gal2_spec.fits
+```
+The first contains the background level, while the second and third contain the spectra of the two galaxies. The format of these FITS files is the same as what `kmos_extract_spec` would create: the first extension is empty, the second contains the spectrum and the third contains the uncertainty. The wavelength corresponding to each pixel is given by the WCS system.
