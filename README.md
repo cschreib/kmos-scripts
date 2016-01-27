@@ -180,7 +180,7 @@ I don't know how standard all of this is, so I did not automatize this part. Her
  - - KMOS.2014-11-25T07:58:06.107-sci.fits
 ```
 
-For this particular KMOS program, I get in the end 6 OBs, 4 calibration sets and 5 standard star calibration sets (I show only two of each above, since the whole list would otherwise be very long).
+For this particular KMOS program (10 hours), I get in the end 10 OBs, 9 calibration sets and 13 standard star calibration sets (I show only two of each above, since the whole list would otherwise be very long). You may get more or less similar numbers, depending on how long was your program.
 
 ## C. Reduce the calibration data
 
