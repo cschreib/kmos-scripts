@@ -119,9 +119,19 @@ int main(int argc, char* argv[]) {
         vec2d tmp = cube(l,_,_)/exposure(l,_,_);
         vec1u idg = where(is_finite(tmp));
         if (!idg.empty()) {
-            // 2) Compute RMS of exposure-renormalized fluxes
-            // and estimate error cube by this RMS and the exposure
-            err(l,_,_) = (1.48*mad(tmp[idg])*error_scale)*exposure(l,_,_);
+            // 2) Compute pixel fluctuations of exposure-renormalized fluxes
+            // and estimate error cube by this value and the exposure
+
+            // Fluctuations from median absolute deviation
+            // double img_rms = 1.48*mad(tmp[idg]);
+            // -> not enough pixels in the IFU to use this one reliably, it tends
+            // to underestiamte the actual flux fluctuation in some situation
+
+            // Fluctuations from RMS of negative pixels in median subtracted map
+            tmp -= median(tmp[idg]);
+            idg = where(is_finite(tmp) && tmp < 0);
+            double img_rms = rms(tmp[idg]);
+            err(l,_,_) = (img_rms*error_scale)*exposure(l,_,_);
 
             if (spatial_smooth > 0) {
                 // 3) Apply spatial smoothing
