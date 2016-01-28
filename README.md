@@ -503,7 +503,32 @@ Now that we are applying position shifts, if you want to exclude OBs it is impor
 
 17) Now you can repeat the step (H.5) to inspect the continuum images, and see if your shifts have improved the signal to noise ratio.
 
-# Appendix A. Analyzing cubes: extracting spectra
+# Appendix A. Analyzing cubes: continuum subtraction
+
+Most of the time, spectroscopic observations are meant to detect emission lines, and the continuum emission of the galaxy is a nuisance that has to be taken care of. Indeed, if the galaxy is bright enough, it can be detected within a single wavelength element and make you think you have discovered a line. It is therefore important to estimate and subtract the continuum emission before searching for lines.
+
+To do so you can use the `contsub.cpp` program provided in this package. For each pixel and each wavelength in the cube, it computes the weighted median value of the flux within a large wavelenth window around the pixel (weighted by the inverse uncertainty) and subtract this value from the flux in the pixel. Here is how I recommend to use it.
+
+1) Go inside the `sci-master` directory (or whatever directory in which you have stored the final reduced and combined cubes). Create a new directory called `contsub` and go there.
+
+2) Copy the C++ program `contsub.cpp` in this directory and compile it:
+```bash
+cphy++ optimize contsub.cpp
+```
+
+3) Run the following command to automatically produce the continuum subtracted cube for each all your targets at once:
+```bash
+for f in ../combine_sci_reconstructed_*.fits; do ./contsub $f; done
+```
+
+This will create a copy of your original cubes and perform the continuum subtraction there. The resulting cubes will be named `*_contsub.fits` to help you identify them.
+
+4) The `contsub` program has a single option: `continuum_width`. It allows you to tweak the size of the wavelength window over which the flux is averaged to compute the continuum level. The default value is 350 wavelength elements. You can choose a smaller value, for example 100, if you wish to estimate the continuum flux at a higher spectral resolution. Note however that the smaller the value, the more likely you are to actually subtract part of the flux of your emission lines. Here is an example:
+```bash
+./contsub combine_sci_reconstructed_xxx.fits continuum_width=100
+```
+
+# Appendix B. Analyzing cubes: extracting spectra
 
 To extract spectra from the cubes you can use QFitView (see section E), which only allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline and the recipe `kmos_extract_spec` is more flexible, as it allows you to use arbitrary masks. But you may want something more...
 
