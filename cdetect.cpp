@@ -105,8 +105,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    fits::write("exp.fits", exposure);
-
     // For each spectral slice...
     vec3d err = replicate(dnan, cube.dims);
 
@@ -154,8 +152,6 @@ int main(int argc, char* argv[]) {
             err(l,_,_) = fnan;
         }
     }
-
-    fits::write("err.fits", err);
 
     // If asked, estimate and subtract the continuum emission
     if (subtract_continuum) {
