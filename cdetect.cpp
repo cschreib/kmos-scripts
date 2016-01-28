@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
 
         // Segment them into individual sources
         uint_t nsrc;
-        uint_t first_id = nsrc_tot;
+        uint_t first_id = nsrc_tot + 1;
         det = segment(det, first_id, nsrc);
         nsrc_tot += nsrc;
 
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
             for (uint_t i : range(nsrc)) {
                 vec1u idd = where(det == i+1);
 
-                id.push_back(first_id + i+1);
+                id.push_back(first_id + i);
                 npix.push_back(idd.size());
 
                 lpix.push_back(l+1);
