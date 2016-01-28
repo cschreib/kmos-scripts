@@ -226,6 +226,16 @@ int main(int argc, char* argv[]) {
             oimg.write_keyword("CRPIX3", crpix);
             oimg.write_keyword("CD3_3", cdelt);
         }
+
+        // S/N
+        oimg.reach_hdu(3);
+        oimg.write(cube/err);
+        oimg.write_header(fimg.read_header());
+        if (spectral_bin > 1) {
+            oimg.write_keyword("CDELT3", cdelt);
+            oimg.write_keyword("CRPIX3", crpix);
+            oimg.write_keyword("CD3_3", cdelt);
+        }
     }
 
     // Now we are ready to try detecting stuff above the noise
