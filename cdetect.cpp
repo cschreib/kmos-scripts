@@ -160,9 +160,10 @@ int main(int argc, char* argv[]) {
         uint_t cbin = floor(continuum_width/double(spectral_bin));
 
         if (cbin <= 1) {
-            error("continuum would estimated over only one rebinned spectral element");
+            error("continuum would be estimated over only one rebinned spectral element");
             error("this would remove all the flux from the cube");
             note("please use a higher value of 'continuum_width' (was ", continuum_width, ")");
+            note("or disable continuum subtraction (subtract_continuum=0)");
             return 1;
         }
 
