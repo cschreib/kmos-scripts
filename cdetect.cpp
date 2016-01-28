@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
         fseg.write_keyword("CD3_3", cdelt);
     }
 
-    fits::write_table(ofilebase+"_cat.fits", ftable(id, lambda, lpix, flux, flux_err));
+    fits::write_table(ofilebase+"_cat.fits", ftable(id, npix, lambda, lpix, flux, flux_err));
 
     return 0;
 }
