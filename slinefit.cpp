@@ -105,8 +105,6 @@ int main(int argc, char* argv[]) {
     fimg.reach_hdu(2);
     fimg.read(err);
 
-    // Renormalize uncertainties to get print,
-
     // Build wavelength axis
     uint_t nlam = flx.size();
     double cdelt = 1, crpix = 1, crval = 1;
