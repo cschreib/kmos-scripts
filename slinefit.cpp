@@ -126,14 +126,17 @@ int main(int argc, char* argv[]) {
     uint_t orig_nlam = lam.size();
 
     // Subtract continuum (optional)
+    vec1d continuum(lam.size());
     if (subtract_continuum) {
         if (verbose) note("estimate and subtract continuum...");
         vec1d tmp = flx;
         for (uint_t l : range(nlam)) {
             uint_t l0 = max(0, int_t(l)-int_t(continuum_width/2));
             uint_t l1 = min(nlam-1, int_t(l)+int_t(continuum_width/2));
-            flx[l] -= median(tmp[l0-_-l1]);
+            continuum[l] = median(tmp[l0-_-l1]);
         }
+
+        flx -= continuum;
     }
 
     vec1b goodspec = is_finite(flx) && is_finite(err) && err > 0;
@@ -434,6 +437,10 @@ int main(int argc, char* argv[]) {
         ospec.reach_hdu(1);
         ospec.write(nmodel);
         ospec.write_header(fimg.read_header());
+        // Also save the continuum level
+        ospec.reach_hdu(2);
+        ospec.write(continuum);
+        ospec.write_header(fimg.read_header());
     }
 
     return 0;
@@ -512,7 +519,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "which could drive the fit toward unrealistic values.");
     bullet("save_model", "Set this flag to also output the best-fit model spectrum. The "
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
-        "spectrum: the first extension is empty, the second contains the flux.");
+        "spectrum: the first extension is empty, the second contains the flux. If "
+        "continuum subtraction is enabled (see 'subtract_continuum'), the continuum "
+        "spectrum is also available in the third extension (else this extension only "
+        "contains a zero-filled spectrum).");
     bullet("outdir", "Name of the directory into which the output files should be created. "
         "Default is the current directory..");
     bullet("ascii", "Set this flag if you want the output catalog to be saved in ASCII "
