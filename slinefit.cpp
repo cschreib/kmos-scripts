@@ -36,6 +36,7 @@ int main(int argc, char* argv[]) {
     double width_max = 500.0;
     double delta_width = 0.2;
     double fix_width = dnan;
+    uint_t lambda_pad = 5;
     bool same_width = false;
     bool use_mpfit = false;
     bool subtract_continuum = true;
@@ -122,6 +123,7 @@ int main(int argc, char* argv[]) {
     }
 
     vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    uint_t orig_nlam = lam.size();
 
     // Subtract continuum (optional)
     if (subtract_continuum) {
@@ -134,14 +136,25 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    vec1b goodspec = is_finite(flx) && is_finite(err) && err > 0;
+    vec1u idl = where(goodspec);
+    if (idl.size() <= lambda_pad*2) {
+        error("the spectrum does not contain any valid point");
+        return 1;
+    }
+
+    // Flag out the pixels at the border of the spectrum
+    goodspec[idl.front()-_-(idl.front()+lambda_pad)] = false;
+    goodspec[(idl.back()-lambda_pad)-_-idl.back()] = false;
+
     // Select a wavelength domain centered on the line(s)
-    vec1u idl = where(lam > lambda_min*(1.0+z0-2*dz)
+    idl = where(lam > lambda_min*(1.0+z0-2*dz)
         && lam < lambda_max*(1.0+z0+2*dz)
-        && is_finite(flx) && is_finite(err) && err > 0);
+        && goodspec);
 
     if (idl.empty()) {
         error("the chosen lines are not covered by the provided cube at z=", z0, " +/- ", dz);
-        idl = where(is_finite(flx) && is_finite(err) && err > 0);
+        idl = where(goodspec);
         note("the cube covers ", min(lam[idl]), " to ", max(lam[idl]));
         note("your redshift search for this line requires a range within ",
             lambda_min*(1.0+z0-2*dz), " to ", lambda_max*(1.0+z0+2*dz));
@@ -493,6 +506,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "experiment, but double check that the fit results make sense. Note that if "
         "'fix_width' is used, the fit will always be done with the default approach, since "
         "there is no need for a non-linear fit in this case.");
+    bullet("lambda_pad", "Must be an integer. It defines the number of wavelength element "
+        "that are ignored both at the beginning and end of the spectrum. Default is 5 "
+        "elements. This is used to flag out invalid and poorly covered spectral regions "
+        "which could drive the fit toward unrealistic values.");
     bullet("save_model", "Set this flag to also output the best-fit model spectrum. The "
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
         "spectrum: the first extension is empty, the second contains the flux.");
