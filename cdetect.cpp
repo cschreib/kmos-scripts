@@ -23,10 +23,11 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     double error_scale = 1.0;
     std::string outdir;
+    bool ascii = false;
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, subtract_continuum, continuum_width, verbose, spectral_bin,
-        error_scale, outdir));
+        error_scale, outdir, ascii));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -50,6 +51,7 @@ int main(int argc, char* argv[]) {
     }
 
     vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    double dl = cdelt*1e4;
 
     // Bin spectral pixels and start building exposure map
     vec3d exposure;
@@ -114,6 +116,8 @@ int main(int argc, char* argv[]) {
     // For each spectral slice...
     vec3d err = replicate(dnan, cube.dims);
 
+    double kernel_error_renorm = 1.0;
+
     if (verbose) note("filtering wavelength slices...");
     for (uint_t l : range(nlam)) {
         // 1) Flag baddly covered areas with exposure map (optional)
@@ -162,7 +166,8 @@ int main(int argc, char* argv[]) {
                 cube(l,_,_) = tmp;
 
                 // 4) Decrease the uncertainty accordingly
-                err(l,_,_) *= sqrt(total(sqr(kernel)));
+                kernel_error_renorm = sqrt(total(sqr(kernel)));
+                err(l,_,_) *= kernel_error_renorm;
             }
         } else {
             cube(l,_,_) = fnan;
@@ -262,9 +267,13 @@ int main(int argc, char* argv[]) {
     vec3u seg(cube.dims);
     uint_t nsrc_tot = 0;
 
+    vec2d cx = generate_img({{cube.dims[1], cube.dims[2]}}, [](double y, double x) { return x; });
+    vec2d cy = generate_img({{cube.dims[1], cube.dims[2]}}, [](double y, double x) { return y; });
+
     vec1u id;
     vec1d lambda;
     vec1u lpix;
+    vec1d x, y;
     vec1u npix;
     vec1d flux;
     vec1d flux_err;
@@ -301,8 +310,11 @@ int main(int argc, char* argv[]) {
                 lpix.push_back(l+1);
                 lambda.push_back(lam[l]);
 
-                flux.push_back(total(cube(l,_,_)[idd]));
-                flux_err.push_back(sqrt(total(sqr(err(l,_,_)[idd])))); // just indicative
+                flux.push_back(total(cube(l,_,_)[idd])*dl);
+                flux_err.push_back(sqrt(total(sqr(err(l,_,_)[idd])))*dl/kernel_error_renorm); // just indicative
+
+                x.push_back(total((snr*cx)[idd])/total(snr[idd]));
+                y.push_back(total((snr*cy)[idd])/total(snr[idd]));
             }
         }
     }
@@ -318,7 +330,21 @@ int main(int argc, char* argv[]) {
         fseg.write_keyword("CD3_3", cdelt);
     }
 
-    fits::write_table(ofilebase+"_cat.fits", ftable(id, npix, lambda, lpix, flux, flux_err));
+    vec1d ra, dec;
+    fits::xy2ad(fits::wcs(fimg.read_header()), x+1, y+1, ra, dec);
+
+    if (ascii) {
+        vec1s hdr = {"ID", "x", "y", "RA [deg]", "Dec [deg]", "Npix",
+            "lambda [um]", "lambda [pix]", "flux [erg/s/cm2]", "error"};
+
+        file::write_table_hdr(ofilebase+"_cat.cat", 18, hdr,
+            id, x, y, ra, dec, npix, lambda, lpix, strna_sci(flux), strna_sci(flux_err)
+        );
+    } else {
+        fits::write_table(ofilebase+"_cat.fits", ftable(
+            id, x, y, ra, dec, npix, lambda, lpix, flux, flux_err
+        ));
+    }
 
     return 0;
 }
@@ -554,6 +580,8 @@ void print_help() {
         "cubes that are used to perform the detection. They will be saved in *_filt.fits.");
     bullet("outdir", "Name of the directory into which the output files should be created. "
         "Default is the current directory.");
+    bullet("ascii", "Set this flag to save the output catalog in ASCII format rather than "
+        "FITS.");
     bullet("verbose", "Set this flag to print the progress of the detection process in "
         "the terminal. Can be useful if something goes wrong, or just to understand what "
         "is going on.");
