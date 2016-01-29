@@ -1,6 +1,27 @@
 # Instructions for basic and advanced reduction
 
-## Introduction
+# Table of content
+
+- [Instructions for basic and advanced reduction](#)
+- [Introduction](#)
+- [A. Prepare your computer](#)
+- [B. Prepare the data](#)
+- [C. Reduce the calibration data](#)
+- [D. Reduce the standard stars for absolute flux calibration](#)
+- [E. A short tutorial to inspect a cube with QFitsView](#)
+- [F. Reduce individual OBs](#)
+- [G. Check for the detection of helper targets](#)
+- [H. Combine all OBs into master cubes](#)
+- [I. Improve OH line subtraction](#)
+- [J. Fix astrometry of individual exposures](#)
+- [Appendix A. Analyzing cubes: continuum subtraction](#)
+- [Appendix B. Analyzing cubes: blind line detection](#)
+- [Appendix C. Analyzing cubes: extracting spectra](#)
+- [Appendix D. Analyzing cubes: fitting lines in spectra](#)
+- [Appendix E. Analyzing cubes: fitting lines in cubes](#)
+
+
+# Introduction
 
 This guide will teach you how to obtain the simplest possible reduction of your VLT-KMOS data, using the default behavior of the pipeline. It uses esorex, not the reflex GUI. So you do the reduction one step and a time, and you have the opportunity to inspect the data and understand what is going on. Also, at any stage you can change the parameters, or apply custom steps of your own: the last sections describe some improvements over the standard reduction.
 
@@ -8,7 +29,7 @@ Now are you prepared to loose a full day or more? Then let's go. The whole guide
 
 NB: You can use these scripts freely. In exchange, a citation to this webpage or Schreiber et al. (in prep.) is always welcome!
 
-## A. Prepare your computer
+# A. Prepare your computer
 
 1) Download the ESO pipeline (be sure to pick up the latest version, the link below may be outdated):
 ftp://ftp.eso.org/pub/dfs/pipelines/kmos/kmos-kit-1.3.17.tar.gz
@@ -33,7 +54,7 @@ http://www.mpe.mpg.de/~ott/dpuser/qfitsview.html
 - Then call `make`, and `sudo make install`.
 - Make sure to follow the last instructions that were printed in the terminal ("sourcing" the file ".phypprc")
 
-## B. Prepare the data
+# B. Prepare the data
 
 1) Uncompress the data given by ESO.
 ```bash
@@ -182,7 +203,7 @@ I don't know how standard all of this is, so I did not automatize this part. Her
 
 For this particular KMOS program (10 hours), I get in the end 10 OBs, 9 calibration sets and 13 standard star calibration sets (I show only two of each above, since the whole list would otherwise be very long). You may get more or less similar numbers, depending on how long was your program.
 
-## C. Reduce the calibration data
+# C. Reduce the calibration data
 
 1) Then the boring part... Reducing the calibration data. Make sure that all the files that you manipulated in the previous step are stored in a separate and safe directory. Say, `/home/cschreib/data/kmos/`. To keep things clean, create a new directory, for example `/home/cschreib/data/kmos/reduced/`. I'll call this the "working directory", and the rest of the work will be done here in order to avoid touching the raw data by accident.
 
@@ -236,7 +257,7 @@ Sometimes, you may see that there is a huge vertical "gap" in one of the calibra
 
 If something goes wrong, e.g. if one of the files above is missing or weird, open the "reduce.sh" script and launch each reduction step one at a time. Then look at the "esorex.log" file to see if it is telling you something. It happened to us in a previous KMOS program that one of the calibration set was bugged, and could not be reduced. In this case the solution is to forget about this calibration set and use another one for the observations that depended on it.
 
-## D. Reduce the standard stars for absolute flux calibration
+# D. Reduce the standard stars for absolute flux calibration
 
 1) Now that the calibration is fully reduced, we can reduce the standard stars to get absolute flux calibration. You may not care of the actual flux for your science case, but I think it can help reduce the RMS (not sure though). This is short anyway, and it will prepare you for the real science reduction later on since the procedure is very similar. So let's go! Copy the "make_stdstar.sh" script into the working directory and open it with your text editor.
 
@@ -280,7 +301,7 @@ chmod +x reduce_stdstar.sh
 
 In one of the calibration set we received, two out of three of these stars were almost out of the field of view of the IFU. The reduction went without telling us, but the flux calibration was completely off, increasing the noise in the final reduced science data by up to 20%. In some other cases the star could not even be seen in the IFU. The solution in all these cases was to ignore these faulty standard stars and use another set that was observed a couple of hours after.
 
-## E. A short tutorial to inspect a cube with QFitsView
+# E. A short tutorial to inspect a cube with QFitsView
 
 1) Launch QFitsView, go to `File -> Open` and navigate to the directory where the cube is located.
 
@@ -300,7 +321,7 @@ In one of the calibration set we received, two out of three of these stars were 
 
 9) Once you are at the right wavelength, maybe the S/N is not very high because you are displaying only a single spectral element, while the line is spectrally extended (it has a width). You can increase the S/N by averaging multiple spectral elements at once. To do that, go to "Options -> Cube display...".  Choose "Line map", and in "Channels", increase the second value of "Central frame". The default is 1, so you only display one spectral element. You may want to try 3 or 6 or 10. This should give a better image of the line spatial profile, and may also allow you to detect the continuum emission if you choose a large enough spectral window.
 
-## F. Reduce individual OBs
+# F. Reduce individual OBs
 
 1) Now that you have been through the standard star calibration, this will seem easy :) Copy the "make_sci.sh" script into the working directory and open it with your text editor. The format is the same as for "make_stdstar.sh", and the only difference is that you also have to provide which standard star calibration set to use for the flux calibration:
 ```bash
@@ -325,7 +346,7 @@ chmod +x reduce_sci.sh
 
 If there is nothing, then the reduction failed. You can inspect the content of the `esorex_sci.log` file to figure out what happened and, if possible, fix the issue.
 
-## G. Check for the detection of helper targets
+# G. Check for the detection of helper targets
 
 1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Some times we chose instead (or in addition) to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction. If you did not observe specific targets for this purpose, you can also use one of your science targets, provided it at least as bright in the NIR continuum and not too extended.
 
@@ -374,7 +395,7 @@ There, issues that you may notice concern the flux calibration and OH line subtr
 
 You can also observe important background level variations, with some exposures having significantly negative or positive background. This is typical when OH line subtraction was imperfect, and I give a simplistic way to fix that later in section (I). But before you fix this, it is good to first perform a naive reduction without trying to fix anything, and this is what we do in the next section. This naive reduction will provide a baseline, which you can use to check if and how much you improve the situation by tweaking the reduction.
 
-## H. Combine all OBs into master cubes
+# H. Combine all OBs into master cubes
 
 1) Copy the "fill_nan.cpp" file into the working directory and compile it:
 ```bash
