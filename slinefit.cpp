@@ -32,11 +32,11 @@ int main(int argc, char* argv[]) {
 
     double z0 = dnan;
     double dz = 0.3;
-    double width_min = 0.0003;
-    double width_max = 0.003;
+    double width_min = 50.0;
+    double width_max = 500.0;
     double fix_width = dnan;
     bool same_width = false;
-    bool brute_force_width = false;
+    bool use_mpfit = false;
     bool subtract_continuum = true;
     uint_t continuum_width = 100;
     bool verbose = false;
@@ -48,12 +48,17 @@ int main(int argc, char* argv[]) {
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tlines, "lines"), width_min, width_max,
         subtract_continuum, continuum_width, verbose, same_width, save_model, fix_width,
-        brute_force_width, ascii, outdir
+        use_mpfit, ascii, outdir
     ));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
         file::mkdir(outdir);
+    }
+
+    if (is_finite(fix_width) && use_mpfit) {
+        warning("'use_mpfit' has no effect if 'fix_width' is set");
+        use_mpfit = false;
     }
 
     // Check validity of input
@@ -157,7 +162,7 @@ int main(int argc, char* argv[]) {
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
     // Define width grid so as to have four width samples per wavelength element
-    uint_t nwidth = ceil(4*(width_max - width_min)/dlam);
+    uint_t nwidth = ceil(8*((width_max - width_min)/3e5)*lines[0].lambda[0]*(1.0+z0)/dlam);
     vec1d ws = rgen(width_min, width_max, nwidth);
 
     // Perform a redshift search
@@ -173,6 +178,11 @@ int main(int argc, char* argv[]) {
 
     vec1d best_model;
 
+    // Renormalize flux and errors in units of 1e-17 erg/s/cm2 to avoid
+    // numerical imprecision (it is always better to deal with numbers close to unity).
+    // This helps prevent mpfit getting stuck and not varying the line widths.
+    flx *= 1e17; err *= 1e17;
+
     auto pg = progress_start(zs.size());
     for (uint_t iz : range(zs)) {
         // Initialize starting conditions and specify fitting constraints
@@ -186,15 +196,17 @@ int main(int argc, char* argv[]) {
                 if (same_width) {
                     for (uint_t il : range(lines))
                     for (uint_t isl : range(lines[il].lambda)) {
-                        m += (tp[il+1]*lines[il].ratio[isl]/(sqrt(2.0*dpi)*tp[0]*1e4))*exp(
-                            -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - l)/(2.0*sqr(tp[0]))
+                        double lw = (tp[0]/3e5)*lines[il].lambda[isl]*(1.0+zs[iz]);
+                        m += (tp[il+1]*lines[il].ratio[isl]/(sqrt(2.0*dpi)*lw*1e4))*exp(
+                            -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - l)/(2.0*sqr(lw))
                         );
                     }
                 } else {
                     for (uint_t il : range(lines))
                     for (uint_t isl : range(lines[il].lambda)) {
-                        m += (tp[2*il]*lines[il].ratio[isl]/(sqrt(2.0*dpi)*tp[2*il+1]*1e4))*exp(
-                            -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - l)/(2.0*sqr(tp[2*il+1]))
+                        double lw = (tp[2*il+1]/3e5)*lines[il].lambda[isl]*(1.0+zs[iz]);
+                        m += (tp[2*il]*lines[il].ratio[isl]/(sqrt(2.0*dpi)*lw*1e4))*exp(
+                            -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - l)/(2.0*sqr(lw))
                         );
                     }
                 }
@@ -238,15 +250,17 @@ int main(int argc, char* argv[]) {
             if (same_width) {
                 for (uint_t il : range(lines))
                 for (uint_t isl : range(lines[il].lambda)) {
-                    m(il,_) += (lines[il].ratio[isl]/(sqrt(2.0*dpi)*p[0]*1e4))*exp(
-                        -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - lam)/(2.0*sqr(p[0]))
+                    double lw = (p[0]/3e5)*lines[il].lambda[isl]*(1.0+zs[iz]);
+                    m(il,_) += (lines[il].ratio[isl]/(sqrt(2.0*dpi)*lw*1e4))*exp(
+                        -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - lam)/(2.0*sqr(lw))
                     );
                 }
             } else {
                 for (uint_t il : range(lines))
                 for (uint_t isl : range(lines[il].lambda)) {
-                    m(il,_) += (lines[il].ratio[isl]/(sqrt(2.0*dpi)*p[2*il+1]*1e4))*exp(
-                        -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - lam)/(2.0*sqr(p[2*il+1]))
+                    double lw = (p[2*il+1]/3e5)*lines[il].lambda[isl]*(1.0+zs[iz]);
+                    m(il,_) += (lines[il].ratio[isl]/(sqrt(2.0*dpi)*lw*1e4))*exp(
+                        -sqr(lines[il].lambda[isl]*(1.0+zs[iz]) - lam)/(2.0*sqr(lw))
                     );
                 }
             }
@@ -288,31 +302,20 @@ int main(int argc, char* argv[]) {
 
         // Estimate starting parameters and/or fix the parameter values
         // and do the fit
-        if (brute_force_width && !is_finite(fix_width)) {
+        if (!use_mpfit && !is_finite(fix_width)) {
             if (same_width) {
                 for (uint_t iw : range(ws)) {
                     p[0] = ws[iw];
-
-                    for (uint_t il : range(lines)) {
-                        p[il+1] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
-                            sqrt(2.0*dpi)*p[0]*1e4;
-                    }
-
                     try_lfit();
                 }
             } else {
                 for (uint_t il : range(lines)) {
                     p[2*il+1] = 0.5*(width_max - width_min);
-                    p[2*il+0] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
-                        sqrt(2.0*dpi)*p[2*il+1]*1e4;
                 }
 
                 for (uint_t il : range(lines)) {
                     for (uint_t iw : range(ws)) {
                         p[2*il+1] = ws[iw];
-                        p[2*il+0] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
-                            sqrt(2.0*dpi)*p[2*il+1]*1e4;
-
                         try_lfit();
                     }
 
@@ -325,11 +328,12 @@ int main(int argc, char* argv[]) {
                     p[0] = fix_width;
                 } else {
                     p[0] = 0.5*(width_max - width_min);
-                }
 
-                for (uint_t il : range(lines)) {
-                    p[il+1] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
-                        sqrt(2.0*dpi)*p[0]*1e4;
+                    for (uint_t il : range(lines)) {
+                        double lw = (p[0]/3e5)*lines[il].lambda[0]*(1.0+zs[iz]);
+                        p[il+1] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
+                            sqrt(2.0*dpi)*lw*1e4;
+                    }
                 }
             } else {
                 for (uint_t il : range(lines)) {
@@ -337,10 +341,11 @@ int main(int argc, char* argv[]) {
                         p[2*il+1] = fix_width;
                     } else {
                         p[2*il+1] = 0.5*(width_max - width_min);
-                    }
 
-                    p[2*il+0] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
-                        sqrt(2.0*dpi)*p[2*il+1]*1e4;
+                        double lw = (p[2*il+1]/3e5)*lines[il].lambda[0]*(1.0+zs[iz]);
+                        p[2*il+0] = interpolate(flx, lam, lines[il].lambda[0]*(1.0 + zs[iz]))*
+                            sqrt(2.0*dpi)*lw*1e4;
+                    }
                 }
             }
 
@@ -354,16 +359,20 @@ int main(int argc, char* argv[]) {
         if (verbose) progress(pg);
     }
 
-
+    // Compute number of degrees of freedom for reduced chi2
     uint_t ndof = flx.size() - lines.size();
     if (!is_finite(fix_width)) {
         if (same_width) ndof -= 1;
         else            ndof -= lines.size();
     }
 
+    // Compute redshift 'probability'
     pz = exp(-(pz - chi2)/ndof);
 
-    print("best redshift: ", z, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+    if (verbose) print("best redshift: ", z, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+
+    // Rescale fluxes and uncertainties
+    flux *= 1e-17; flux_err *= 1e-17;
 
     // Write the result
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
@@ -433,26 +442,31 @@ void print_help(const std::map<std::string,line_t>& db) {
         "fit instability issues if some lines are very low S/N and the fitted line widths "
         "diverge to unreasonable values. The default is to let each width vary freely and "
         "independently in the fit.");
-    bullet("fix_width=...", "Must be a number. If provided, the program will force the "
-        "line widths to be equal to this value for all the lines. This can help solving "
-        "fit instability issues if some lines are very low S/N and the fitted line widths "
-        "diverge to unreasonable values. The default is to let each width vary freely in "
-        "the fit.");
-    bullet("brute_force_width", "Set this flag to use a brute force approach to compute "
-        "the line's widths. This can be used as a fallback solution if the default "
-        "algorithm (a non-linear fit using the Levenberg-Marquardt technique) fails or "
-        "gives garbage results. Using the brute force approach will provide more stable "
-        "results and a guaranteed convergence, but may require more computation time. In "
-        "practice the difference in performance is not very large because we make the "
-        "assumptions that there is no covariance between the widths of individual lines, "
-        "so they are varied one after the other rather than all at once. Also we can use "
-        "a simple linear fit to adjust the line fluxes, which is itself much faster.");
+    bullet("fix_width=...", "Must be a line width (in km/s). If provided, the program will "
+        "force the line widths to be equal to this value for all the lines. This can help "
+        "solving fit instability issues if some lines are very low S/N and the fitted line "
+        "widths diverge to unreasonable values. The default is to let each width vary "
+        "freely in the fit.");
+    bullet("use_mpfit", "Set this flag to use a non-linear fitting approach to fit the line "
+        "profiles. This method usies the Levenberg-Marquardt technique to fit non linear "
+        "models, which is more flexible and correct since it allows simultaneous fit of "
+        "the fluxes and line widths of all the lines. However these algorithms are more "
+        "unstable and can often not converge. The default method, if this flag is not set, "
+        "is therefore to use a brute force approach, which is certain to converge, but "
+        "may require more computation time. In practice the difference in performance is "
+        "not so bad (it may even be faster), because we make the assumption that there is "
+        "no covariance between the widths of individual lines, so they are varied one "
+        "after the other rather than all at once. Also we can use a simple linear fit to "
+        "adjust the line fluxes, which is itself much faster. So, use this flag as an "
+        "experiment, but double check that the fit results make sense. Note that if "
+        "'fix_width' is used, the fit will always be done with the default approach, since "
+        "there is no need for a non-linear fit in this case.");
     bullet("width_min=...", "Must be a number. Defines the minimum allowed width for a "
-        "line in microns. Default is 0.0003. Note that this value is only used if "
+        "line in km/s. Default is 50. Note that this value is only used if "
         "'brute_force_width' is set. If not, then 'width_min' and 'width_max' are simply "
         "used to estimate the initial value of the line width for the non-linear fit "
         "(which is taken as the average between the two).");
-    bullet("width_max=...", "See above.");
+    bullet("width_max=...", "See above. Default is 500.");
     bullet("save_model", "Set this flag to also output the best-fit model spectrum. The "
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
         "spectrum: the first extension is empty, the second contains the flux.");
