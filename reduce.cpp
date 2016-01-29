@@ -1,10 +1,12 @@
 #include <phypp.hpp>
 
+void print_help();
+
 int main(int argc, char* argv[]) {
     // If too few arguments provided, print usage and exit
     if (argc < 3) {
-        print("reduce (calib|stdstar|sci) <raw_dir> options=...");
-        print("reduce combine <sci_base_name> options=...");
+        print_help();
+        return 0;
     }
 
     // Get static calibration directory from environment variable
@@ -186,7 +188,7 @@ int main(int argc, char* argv[]) {
         // Here we enforce that the individual exposures within a given OB are not
         // collapsed into a single cube, because we will combine multiple OBs afterwards
         // and it is more efficient to leave them uncombined for now. It also allows
-        // checking the astronmetry and quality of each exposure.
+        // checking the astrometry and quality of each exposure.
 
         if (calib.empty()) {
             error("please provide the reduced calibration directory(ies): calib=...");
@@ -440,3 +442,77 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+void print_help() {
+    using namespace format;
+
+    print("reduce v1.0");
+    print("usage: reduce <task> <target> grating=... [options]");
+    print("");
+    paragraph("This program will help you create the files needed by the KMOS pipeline "
+        "(EsoRex) to run a full reduction of raw data into spectral cubes. It decomposes "
+        "the process into various \"tasks\" which are listed below. In all cases, the "
+        "output files and scripts are created in the current directory, including the SOF "
+        "files needed by the pipeline and a 'reduce.sh' script that will run the pipeline "
+        "reduction steps. You can start the reduction by calling this newly created "
+        "script. Also, for most tasks you have to specify the chosen grating for your "
+        "observations in 'grating=...'. For example, for observations in the K band, "
+        "'grating=KKK', while H+K band would be 'grating=HKHKHK'.");
+    print("'task' must be one of the following:");
+    bullet("calib", "Prepare the reduction of a KMOS calibration set, including darks, "
+        "flats, illumination, spatial and spectral calibration. The parameter 'target' "
+        "must be the directory containing the raw frames of this calibration set (no "
+        "other calibration sets shall be present in this same directory).");
+    bullet("stdstar", "Prepare the reduction of a KMOS standard star calibration set, to "
+        "obtain absolute flux calibration. The parameter 'target' must be the directory "
+        "containing the raw frames of this standard star calibration set (no other "
+        "calibration shall be present in this same directory). You also have to provide "
+        "the 'calib=...' parameter (see below) to indicate which calibration files to use "
+        "for the reduction of these stars.");
+    bullet("sci", "Prepare the reduction of a KMOS science observing block (OB), to "
+        "obtain spectral cubes for all targets in each exposure of this OB. The "
+        "parameter 'target' must be the directory containing the raw frames of this OB "
+        "(no other OB shall be present in this same directory). You also have to provide "
+        "the 'calib=...' parameter (see below) to indicate which calibration files to use "
+        "for the reduction of these targets, as well as the 'stdstar=...' parameter (see "
+        "below) to specify which standard stars should be used for the flux calibration.");
+    bullet("helpers", "Prepare the necessary files to create continuum images of 'helper' "
+        "targets; bright continuum sources in your OBs. These targets are useful to check "
+        "the quality of the reduction, the astrometry, and the absolute flux calibration. "
+        "This task will create images of these targets for a given OB, for each exposure, "
+        "and also combining all the exposures of the OB. The parameter 'target' must be "
+        "the directory containing the reduced cubes, created by the task 'sci'. You also "
+        "have to provide the 'helpers=...' parameter (see below) to list the names of "
+        "your helper targets (name as given in the KARMA catalog).");
+    bullet("combine", "Prepare the reduction of multiple KMOS OBs into a single data set, "
+        "combining all the exposures previously reduced using the 'sci' task. The paramter "
+        "'target' must give the pattern to use to look for directories containing the "
+        "reduced OBs. For example, if you have two OBs in the 'sci-01' and 'sci-02' "
+        "directories, then 'target' must be 'sci-*'. The pipeline will create one FITS "
+        "file per target observed in these OBs, containing the combined cube.");
+    bullet("collapse", "Prepare the necessary files to create continuum images of all "
+        "the observed targets in a combined data set. The parameter 'target' must be "
+        "the directory containing the combined cubes, created by the task 'combine'. "
+        "The pipeline will create one FITS image for each target.");
+    print("\nAvailable options:");
+    bullet("calib=[...]", "Needed for tasks 'stdstar' and 'sci'. This parameter lists "
+        "the directories containing the reduced calibration files to be used for the "
+        "reduction of spectral cubes. Multiple directories can be listed, in case "
+        "not all required calibration files are found into a single calibration set "
+        "(i.e., in particular illumination correction is often missing). In that case, "
+        "list the different directories in order of decreasing priority: all the files of "
+        "the first directory will be picked, and only the files that could not be found "
+        "there will be searched for in the next directories.");
+    bullet("stdstar=...", "Needed for task 'sci'. This parameter gives the directory "
+        "that contains the reduced flux calibration files to be used for the reduction of "
+        "fully calibrated spectral cubes. Only a single directory should be listed.");
+    bullet("helpers=[...]", "Needed for task 'helpers'. Lists the names of the helper "
+        "targets observed in this OB. The names should be the ones given in the KARMA "
+        "catalog when you prepared the Phase 2 before the observations started. These "
+        "names are case-insensitive. If a helper target is not found, it will simply be "
+        "ignored.");
+    bullet("options=[...]", "Optional, available for all tasks. This parameter lists all "
+        "additional options you wish to pass to the pipeline for the reduction. These "
+        "options may not contain commas (,) or quotes (\"). If they contain spaces, be "
+        "sure to write the parameter as: options=\"[-option1=foo, -option2='foo bar'].\"");
+    print("");
+}
