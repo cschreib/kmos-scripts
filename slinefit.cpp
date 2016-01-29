@@ -408,10 +408,18 @@ int main(int argc, char* argv[]) {
     }
 
     if (save_model) {
+        // Rescale model
+        best_model *= 1e-17;
+
+        // First bring back the model into the original wavelength grid
+        vec1d nmodel = replicate(dnan, orig_nlam);
+        nmodel[idl] = best_model;
+
+        // Then save it
         fits::output_image ospec(filebase+"_slfit_model.fits");
         ospec.write(vec1d(0)); // empty primary
         ospec.reach_hdu(1);
-        ospec.write(best_model);
+        ospec.write(nmodel);
         ospec.write_header(fimg.read_header());
     }
 
