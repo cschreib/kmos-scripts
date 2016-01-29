@@ -642,3 +642,12 @@ combine_sci_reconstructed_xxx_gal2_spec.fits
 ```
 The first contains the background level, while the second and third contain the spectra of the two galaxies. The format of these FITS files is the same as what `kmos_extract_spec` would create: the first extension is empty, the second contains the spectrum and the third contains the uncertainty. The wavelength corresponding to each pixel is given by the WCS system.
 
+
+# Appendix D. Analyzing cubes: fitting lines in spectra
+
+Describe `slinefit`. [WIP].
+
+
+# Appendix E. Analyzing cubes: fitting lines in cubes
+
+Describe `clinefit`. [WIP].
