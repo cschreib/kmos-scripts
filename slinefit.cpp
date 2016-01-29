@@ -42,12 +42,13 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     bool save_model = false;
     std::string outdir;
+    bool ascii = false;
     vec1s tlines;
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tlines, "lines"), width_min, width_max,
         subtract_continuum, continuum_width, verbose, same_width, save_model, fix_width,
-        brute_force_width
+        brute_force_width, ascii, outdir
     ));
 
     if (!outdir.empty()) {
@@ -355,6 +356,7 @@ int main(int argc, char* argv[]) {
         if (verbose) progress(pg);
     }
 
+
     uint_t ndof = flx.size() - lines.size();
     if (!is_finite(fix_width)) {
         if (same_width) ndof -= 1;
@@ -363,12 +365,25 @@ int main(int argc, char* argv[]) {
 
     pz = exp(-(pz - chi2)/ndof);
 
+    print("best redshift: ", z, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+
     // Write the result
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
     if (verbose) note("write to disk...");
-    fits::output_table otbl(filebase+"_slfit.fits");
-    otbl.write_columns(ftable(chi2, z, flux, flux_err, width, width_err));
-    otbl.write_columns("lines", tlines, "pzx", zs, "pzy", pz);
+
+    if (ascii) {
+        vec1s hdr = {"line", "flux [erg/s/cm2]", "error", "width [um]", "error"};
+        file::write_table_hdr(filebase+"_slfit_lines.cat", 18, hdr,
+            tlines, strna_sci(flux), strna_sci(flux_err), strna_sci(width), strna_sci(width_err)
+        );
+
+        hdr = {"redshift", "P(z)"};
+        file::write_table_hdr(filebase+"_slfit_pz.cat", 18, hdr, zs, strna_sci(pz));
+    } else {
+        fits::output_table otbl(filebase+"_slfit.fits");
+        otbl.write_columns(ftable(chi2, z, flux, flux_err, width, width_err));
+        otbl.write_columns("lines", tlines, "pzx", zs, "pzy", pz);
+    }
 
     if (save_model) {
         fits::output_image ospec(filebase+"_slfit_model.fits");
@@ -445,6 +460,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "spectrum: the first extension is empty, the second contains the flux.");
     bullet("outdir", "Name of the directory into which the output files should be created. "
         "Default is the current directory..");
+    bullet("ascii", "Set this flag if you want the output catalog to be saved in ASCII "
+        "format rather than FITS. In this case, the lines and their fluxes will be saved "
+        "in the '*_slfit_lines.cat' file, while the redshift probability distribution "
+        "will be saved in '*_slfit_pz.cat'.");
     bullet("verbose", "Set this flag to print the progress of the detection process in "
         "the terminal. Can be useful if something goes wrong, or just to understand what "
         "is going on.");
