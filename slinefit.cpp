@@ -377,8 +377,14 @@ int main(int argc, char* argv[]) {
 
     // Compute redshift 'probability'
     pz = exp(-(pz - chi2)/ndof);
+    pz -= min(pz);
+    pz /= integrate(zs, pz);
 
-    if (verbose) print("best redshift: ", z, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+    vec1d cpz = cumul(zs, pz); cpz /= max(cpz);
+    double zlow = z - interpolate(zs, cpz, 0.16);
+    double zup = interpolate(zs, cpz, 0.84) - z;
+
+    if (verbose) print("best redshift: ", z, " + ", zup, " - ", zlow, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
 
     // Rescale fluxes and uncertainties
     flux *= 1e-17; flux_err *= 1e-17;
@@ -397,7 +403,7 @@ int main(int argc, char* argv[]) {
         file::write_table_hdr(filebase+"_slfit_pz.cat", 18, hdr, zs, strna_sci(pz));
     } else {
         fits::output_table otbl(filebase+"_slfit.fits");
-        otbl.write_columns(ftable(chi2, z, flux, flux_err, width, width_err));
+        otbl.write_columns(ftable(chi2, z, zup, zlow, flux, flux_err, width, width_err));
         otbl.write_columns("lines", tlines, "pzx", zs, "pzy", pz);
     }
 
