@@ -1,6 +1,13 @@
 #include <phypp.hpp>
 
+void print_help();
+
 int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print_help();
+        return 0;
+    }
+
     std::string dir = file::directorize(argv[1]);
 
     vec1s files = file::list_files(dir+"KMOS*.fits");
@@ -41,9 +48,22 @@ int main(int argc, char* argv[]) {
             obj = "sci";
         }
 
-        spawn("mv "+dir+file+" "+dir+file::remove_extension(file)+"-"+obj+".fits");
+        if (!end_with(file, obj+".fits")) {
+            spawn("mv "+dir+file+" "+dir+file::remove_extension(file)+"-"+obj+".fits");
+        }
     }
 
     return 0;
 }
 
+void print_help() {
+    using namespace format;
+
+    print("rename v1.0");
+    print("usage: rename <directory>");
+    print("");
+    print("Main parameters:");
+    paragraph("'directory' must contain an abitrary number of KMOS raw data frames in "
+        "FITS format. This program will rename these files one by one, appending a suffix "
+        "to the file's name to allow you to identify the file's purpose.");
+}
