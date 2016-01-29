@@ -10,8 +10,14 @@ int main(int argc, char* argv[]) {
 
     vec1s suffix;
     std::string fitmask;
+    std::string outdir;
     bool residuals = false;
-    read_args(argc-2, argv+2, arg_list(suffix, fitmask, residuals));
+    read_args(argc-2, argv+2, arg_list(suffix, fitmask, residuals, outdir));
+
+    if (!outdir.empty()) {
+        outdir = file::directorize(outdir);
+        file::mkdir(outdir);
+    }
 
     // Read cube
     fits::input_image fimg(argv[1]);
@@ -87,10 +93,9 @@ int main(int argc, char* argv[]) {
     }
 
     // Write spectra to disk
+    std::string filebase = outdir+file::get_basename(erase_end(argv[1], ".fits"));
     for (uint_t i : range(nmodel)) {
-        std::string filebase = file::get_basename(erase_end(argv[1], ".fits"))+suffix[i];
-
-        fits::output_image fspec(filebase+"_spec.fits");
+        fits::output_image fspec(filebase+suffix[i]+"_spec.fits");
         fspec.write(vec1d(0)); // empty primary extension, KMOS convention
         fspec.reach_hdu(1);
         fspec.write(flx1d(_,i));
@@ -110,14 +115,12 @@ int main(int argc, char* argv[]) {
         fits::header hdr = fimg.read_header();
 
         for (uint_t i : range(nmodel)) {
-            std::string filebase = file::get_basename(erase_end(argv[1], ".fits"))+suffix[i];
-
             vec3d res = flx;
             for (uint_t l : range(res.dims[0])) {
                 flatten(res(l,_,_)) -= flx1d(l,i)*models(i,_);
             }
 
-            fits::output_image fspec(filebase+"_residual.fits");
+            fits::output_image fspec(filebase+suffix[i]+"_residual.fits");
             fspec.write(vec3d(0,0,0)); // empty primary HDU
             fspec.reach_hdu(1);
             fspec.write(res);
@@ -148,10 +151,12 @@ void print_help() {
         "format: [name1,name1,name3,...]. There must be as many suffixes as there are "
         "models in the 'models.fits' file.");
     print("Available options:");
-    bullet("fitmask=...", "must be a 2D FITS file containing the mask to define the fitting "
+    bullet("fitmask=...", "Must be a 2D FITS file containing the mask to define the fitting "
         "region. Only the pixels with a non-zero value in the mask will be used "
         "(default: all valid pixels are used).");
-    bullet("residuals", "set this flag if you want the program to generate residual cubes, "
+    bullet("residuals", "Set this flag if you want the program to generate residual cubes, "
         "removing the contribution of each component separately (default: do not "
         "generate residuals)");
+    bullet("outdir", "Name of the directory into which the output files should be created. "
+        "Default is the current directory.");
 }

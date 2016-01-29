@@ -44,12 +44,18 @@ int main(int argc, char* argv[]) {
     double oh_threshold = dnan;
     bool allow_absorption = false;
     std::string tline;
+    std::string outdir;
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tline, "line"), width,
         subtract_continuum, continuum_width, minsnr, fit_background, expmap, minexp,
-        velocity, spatial_smooth, verbose, oh_threshold, allow_absorption
+        velocity, spatial_smooth, verbose, oh_threshold, allow_absorption, outdir
     ));
+
+    if (!outdir.empty()) {
+        outdir = file::directorize(outdir);
+        file::mkdir(outdir);
+    }
 
     // Check validity of input
     bool bad = false;
@@ -285,7 +291,8 @@ int main(int argc, char* argv[]) {
 
     // Write the result
     if (verbose) note("write to disk...");
-    fits::output_image oimg(file::remove_extension(file::get_basename(argv[1]))+"_lfit_"+tline+".fits");
+    std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
+    fits::output_image oimg(filebase+"_lfit_"+tline+".fits");
     auto write_wcs = [&]() {
         oimg.write_keyword("CRPIX1", crpix1);
         oimg.write_keyword("CRPIX2", crpix2);
@@ -409,6 +416,8 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("allow_absorption", "Enable this flag if you also want to fit absorption "
         "features, i.e., lines of negative fluxes. By default only positive fluxes are "
         "considered.");
+    bullet("outdir", "Name of the directory into which the output files should be created. "
+        "Default is the current directory..");
     bullet("verbose", "Set this flag to print the progress of the detection process in "
         "the terminal. Can be useful if something goes wrong, or just to understand what "
         "is going on.");

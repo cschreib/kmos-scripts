@@ -22,10 +22,16 @@ int main(int argc, char* argv[]) {
     uint_t continuum_width = 100; // in pixels of the original scale
     bool verbose = false;
     double error_scale = 1.0;
+    std::string outdir;
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, subtract_continuum, continuum_width, verbose, spectral_bin,
-        error_scale));
+        error_scale, outdir));
+
+    if (!outdir.empty()) {
+        outdir = file::directorize(outdir);
+        file::mkdir(outdir);
+    }
 
     // Read cube
     std::string infile = argv[1];
@@ -131,6 +137,7 @@ int main(int argc, char* argv[]) {
             tmp -= median(tmp[idg]);
             idg = where(is_finite(tmp) && tmp < 0);
             double img_rms = rms(tmp[idg]);
+
             err(l,_,_) = (img_rms*error_scale)*exposure(l,_,_);
 
             if (spatial_smooth > 0) {
@@ -210,7 +217,7 @@ int main(int argc, char* argv[]) {
     }
 
     // If asked, save the processed cubes to disk
-    std::string ofilebase = file::remove_extension(file::get_basename(infile));
+    std::string ofilebase = outdir+file::remove_extension(file::get_basename(infile));
     if (save_cubes) {
         fits::output_image oimg(ofilebase+"_filt.fits");
 
@@ -545,6 +552,8 @@ void print_help() {
         "to define the spatial extents of a detection. Default is 3.");
     bullet("save_cubes", "Set this flag to write to disk the filtered flux and uncertainty "
         "cubes that are used to perform the detection. They will be saved in *_filt.fits.");
+    bullet("outdir", "Name of the directory into which the output files should be created. "
+        "Default is the current directory.");
     bullet("verbose", "Set this flag to print the progress of the detection process in "
         "the terminal. Can be useful if something goes wrong, or just to understand what "
         "is going on.");
