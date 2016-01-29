@@ -1,6 +1,11 @@
 #include <phypp.hpp>
 
 int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print("usage: fill_nan <cube>");
+        return 0;
+    }
+
     vec3f cube;
     fits::image img(argv[1]);
     img.read(cube);

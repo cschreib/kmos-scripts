@@ -1,6 +1,11 @@
 #include <phypp.hpp>
 
 int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print("usage: extract_ifu <file> names=[...]");
+        return 0;
+    }
+
     fits::image fimg(argv[1]);
     fimg.reach_hdu(0);
 

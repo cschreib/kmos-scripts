@@ -1,6 +1,11 @@
 #include <phypp.hpp>
 
 int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        print("usage: median_sub <directory>");
+        return 0;
+    }
+
     std::string dir = file::directorize(argv[1]);
     vec1s files = dir+file::list_files(dir+"sci_reconstructed*-sci.fits");
 
