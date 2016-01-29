@@ -34,6 +34,7 @@ int main(int argc, char* argv[]) {
     double dz = 0.3;
     double width_min = 50.0;
     double width_max = 500.0;
+    double delta_width = 0.2;
     double fix_width = dnan;
     bool same_width = false;
     bool use_mpfit = false;
@@ -162,11 +163,19 @@ int main(int argc, char* argv[]) {
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
     // Define width grid so as to have four width samples per wavelength element
-    uint_t nwidth = ceil(8*((width_max - width_min)/3e5)*lines[0].lambda[0]*(1.0+z0)/dlam);
+    double dwidth = 3e5*delta_width*dlam/(lines[0].lambda[0]*(1.0+z0));
+    uint_t nwidth = ceil((width_max - width_min)/dwidth);
     vec1d ws = rgen(width_min, width_max, nwidth);
 
     // Perform a redshift search
-    if (verbose) note("redshift search...");
+    if (verbose) {
+        if (!use_mpfit && !is_finite(fix_width)) {
+            note("redshift search (", nz, " redshifts, ", nwidth, " line widths, "
+                "delta sigma = ", ws[1] - ws[0], ")...");
+        } else {
+            note("redshift search (", nz, " redshifts)...");
+        }
+    }
 
     double chi2 = dinf;
     double z = dnan;
@@ -437,6 +446,15 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("continuum_width=...", "Must be a integer. It defines the number of spectral "
         "elements that will be averaged to compute the continuum emission. Default is 100 "
         "pixels.");
+    bullet("width_min=...", "Must be a number. Defines the minimum allowed width for a "
+        "line in km/s. Default is 50. Note that this value is not used if 'use_mpfit' is "
+        "set (in this case, 'width_min' and 'width_max' are simply used to estimate the "
+        "initial value of the line width for the non-linear fit, taken as the average "
+        "between the two).");
+    bullet("width_max=...", "See above. Default is 500 km/s.");
+    bullet("delta_width=...", "Must be a number. Defines the size of a step in the grid of "
+        "line widths, as the fraction of the size of a wavelength element of the spectrum. "
+        "Default is 0.2, which at R=3000 corresponds to 16 km/s.");
     bullet("same_width", "Set this flag if you want to force all lines to have the same "
         "width, rather than fit them independently. This can help solving "
         "fit instability issues if some lines are very low S/N and the fitted line widths "
@@ -461,12 +479,6 @@ void print_help(const std::map<std::string,line_t>& db) {
         "experiment, but double check that the fit results make sense. Note that if "
         "'fix_width' is used, the fit will always be done with the default approach, since "
         "there is no need for a non-linear fit in this case.");
-    bullet("width_min=...", "Must be a number. Defines the minimum allowed width for a "
-        "line in km/s. Default is 50. Note that this value is only used if "
-        "'brute_force_width' is set. If not, then 'width_min' and 'width_max' are simply "
-        "used to estimate the initial value of the line width for the non-linear fit "
-        "(which is taken as the average between the two).");
-    bullet("width_max=...", "See above. Default is 500.");
     bullet("save_model", "Set this flag to also output the best-fit model spectrum. The "
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
         "spectrum: the first extension is empty, the second contains the flux.");
