@@ -523,16 +523,64 @@ for f in ../combine_sci_reconstructed_*.fits; do ./contsub $f; done
 
 This will create a copy of your original cubes and perform the continuum subtraction there. The resulting cubes will be named `*_contsub.fits` to help you identify them.
 
-4) The `contsub` program has a single option: `continuum_width`. It allows you to tweak the size of the wavelength window over which the flux is averaged to compute the continuum level. The default value is 350 wavelength elements. You can choose a smaller value, for example 100, if you wish to estimate the continuum flux at a higher spectral resolution. Note however that the smaller the value, the more likely you are to actually subtract part of the flux of your emission lines. Here is an example:
+4) The `contsub` program has a single option: `continuum_width`. It allows you to tweak the size of the wavelength window over which the flux is averaged to compute the continuum level. The default value is 350 wavelength elements. You can choose a smaller value, for example 100, if you wish to estimate the continuum flux at a higher spectral resolution. Note however that the smaller the value, the more likely you are to actually subtract part of the flux of your emission lines, or to be dragged by strong OH line residuals. Here is an example:
 ```bash
 ./contsub combine_sci_reconstructed_xxx.fits continuum_width=100
 ```
 
-# Appendix B. Analyzing cubes: extracting spectra
+# Appendix B. Analyzing cubes: blind line detection
 
-To extract spectra from the cubes you can use QFitView (see section E), which only allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline and the recipe `kmos_extract_spec` is more flexible, as it allows you to use arbitrary masks. But you may want something more...
+If you know the redshifts of your targets, then this step is probably not interesting for you. However, if you are using KMOS to measure the spectroscopic redshift of your objects, then this may prove useful.
 
-There are cases where you need to de-blend two close objects in the IFU and extract both their spectra. You may also want to take into account a uniform background level. To do this, you can use the `multispecfit.cpp` tool. Given a fixed set of 2D models, it will find the optimal linear combination of these models to describe the content of the KMOS data cube at each wavelength, independently. It will then give you the spectrum associated to each model. Sounds interesting? Read on.
+In broadband imaging, once the images are reduced, the usual first step is to run SExtractor (Bertin & Arnouts 1996) to identify the detections and obtain their photometry. SExtractor is not very well suited for detecting sources in KMOS cubes, first because it has no clue of spectral cubes, but also because the field of view of KMOS is fairly small, and the uncertainties can be difficult to estimate.
+
+Alternatively, you can look for detections yourself, by scanning the cube by eye. This is tedious: there are about two thousands of spectral elements, and you should inspect each of them one by one... If you know where your source is located in the IFU (for example if you see it in the collapsed continuum images), then you can try to extract a spectrum there (see, e.g., next section) and look for lines in the extracted spectrum. This is fine. However most of the time when dealing with distant galaxies, they are not detected in the continuum. Worse, even though you know their coordinates, you can never be sure of the astrometry of your IFU, and you may look at the wrong place... Lastly, you cannot rule out that the emission line geometry of your object may differ substantially from the continuum geometry, such that even with a perfect astrometry there could be offsets between the continuum and the line emission.
+
+For these reasons I have developed a small tool to blindly search for detections in KMOS cubes. It performs both spectral and spatial smoothing to enhance the S/N, and computes the uncertainties from the data themselves (rather than relying on the uncertainties provided by the pipeline, which can prove to be underestimated). This tool is called `cdetect`.
+
+Here is how you would use it.
+
+1) First go into the directory where you have created your final, combined cubes in section (H). Create a new directory there called `detect`; go there and copy the `cdetect.cpp` program and compile it:
+```bash
+cphy++ optimize cdetect.cpp
+```
+
+2) Identify the cube that you want to analyze. If you are looking for line detections, it is best to subtract the continuum emission first, so you may want to work on the continuum-subtracted cubes (see previous section). I will assume you have followed the steps of the previous section to build them. You will also need the exposure map created by the pipeline (which is normally located in the same directory as the reduced cubes created in section H). Open it (e.g., with QFitsView or DS9) and choose a threshold in exposure so that you eliminate the poorly covered borders of your IFU. This is important to avoid outliers from polluting your source detection. For example, for my program with 32 exposures, I choose a threshold of 25.
+
+3) Make a first try with the default parameters:
+```bash
+./cdetect ../contsub/combine_sci_reconstructed_xxx.fits \
+    expmap=../exp_mask_sci_reconstructed_xxx.fits minexp=25 \
+    save_cubes verbose
+```
+
+The `save_cubes` option will ask the program to save intermediate files so you can take a look. This is, in particular, the filtered flux cube where you can check by eye the robustness of your detections. Lastly, the `verbose` option prints some information in the terminal while the program is running; it tells you what it is doing.
+
+4) Depending on your observations, you may have multiple or zero detections. If you have no detection, that may be because the default behavior of the program is to search for detections in each individual spectral slice. That is fine if your lines have high S/N, or are very narrow. But if the lines are spectrally extended, you will want to apply some binning. To do so, you can tune the `spectral_bin` parameter. The default value is 1 (no binning), so you can first try with 2, which will merge every two spectral elements into one, increasing the S/N for extended lines by about a factor 1.4. If that is not enough, try higher values. There is no need to go too high, since at some point you just dilute your signal. The optimal value depends on the expected width of your emission lines. At R=3000, no binning is the optimal choice for velocity dispersions close to and below 75 km/s. Generally speaking, a binning of N is optimal for velocity dispersions around N*(3000/R)*75 km/s.
+
+If you still have no detection, there is one last thing you can do: increase the spatial binning. By default the tool convolves the IFU with a Gaussian kernel of width equal to 1.2 pixels, which is roughly the size of the Point Spread Function I observed in my programs. You know there cannot be any detection below this spatial scale, so smoothing the image with the PSF will always enhance the S/N. So one good thing to do is to first make sure that 1.2 pixels is the right size of your PSF (it can vary with seeing). Then, you can use a higher smoothing radius if you expect your target to be substantially resolved. You can increase the smoothing radius using the `spatial_smooth` parameter, for example to 1.6 pixels, or 2.2. Note that any value above the size of the PSF will be suboptimal for point sources though, so you may instead loose in S/N.
+
+Here is an example of a tweak of the command to increase the S/N (remember that what you should do precisely will depend on your own data):
+```bash
+./cdetect ../contsub/combine_sci_reconstructed_xxx.fits \
+    expmap=../exp_mask_sci_reconstructed_xxx.fits minexp=25 \
+    save_cubes verbose spectral_bin=2 spatial_smooth=1.6
+```
+
+If you have no detections there, you can give up, or if you feel like it you can also lower your tolerance threshold for a detection, which is set at 5 sigma by default. This is set by the `snr_det` parameter. Who knows, it may be that the uncertainty has been overestimated, you can still try to take a look at these 4 sigma spots... Alternatively, you may have too many detections. Including many false positives if the uncertainty was underestimated. To solve this, you can choose instead to increase the value of `snr_det`.
+
+5) If you have one or more detections, the program will list them in a catalog with their ID, spatial and spectral position. It will also give you an estimate of the flux, as well as a rough uncertainty. The flux is the sum of all pixels in the source's segmentation area after filtering, and should be a good first guess at most. The uncertainty is also a rough estimate. Both of these should not be used for science analysis, just as indications. For robust flux measurement you should extract a spectrum (see Appendix C) and fit the line profiles (see Appendix D).
+
+The output catalog is in FITS format by default, you can open it with IDL and `mrdfits` or in Python with `astropy.fitsio`. If you prefer, you can also ask for an ASCII table by specifying the `ascii` flag in the command line arguments.
+
+6) The program also produces a "segmentation cube" where the spatial extents of all sources is stored in an integer cube. There, each pixel value tells you to which source it belongs (zero meaning no detection). You can use that to evaluate the reliability of a detection (what does it look like; is it a concentrated blob or a vague irregular feature that may be caused by a data reduction problem?).
+
+
+# Appendix C. Analyzing cubes: extracting spectra
+
+To extract spectra from the cubes you can use QFitsView (see section E), which allows you to extract all the flux within a given pixel or circular aperture. The esorex pipeline, with the recipe `kmos_extract_spec`, is more flexible since it allows you to use arbitrary masks. But you may want something more...
+
+There are cases where you need to de-blend two close objects in the IFU and extract both their spectra. You may also want to take into account a uniform background level. To do this, you can use the `multispecfit` tool. Given a fixed set of 2D models, it will find the optimal linear combination of these models to describe the content of the KMOS data cube at each wavelength, independently. It will then give you the spectrum associated to each model. Sounds interesting? Read on.
 
 1) First go into the directory where you have created your final, combined cubes in section (H). Create yourself a new directory called `spectra`; go there and copy the `multispecfit.cpp` program and compile it:
 ```bash
@@ -593,3 +641,4 @@ combine_sci_reconstructed_xxx_gal1_spec.fits
 combine_sci_reconstructed_xxx_gal2_spec.fits
 ```
 The first contains the background level, while the second and third contain the spectra of the two galaxies. The format of these FITS files is the same as what `kmos_extract_spec` would create: the first extension is empty, the second contains the spectrum and the third contains the uncertainty. The wavelength corresponding to each pixel is given by the WCS system.
+
