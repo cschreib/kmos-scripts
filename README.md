@@ -2,23 +2,27 @@
 
 # Table of content
 
-- [Instructions for basic and advanced reduction](#)
-- [Introduction](#)
-- [A. Prepare your computer](#)
-- [B. Prepare the data](#)
-- [C. Reduce the calibration data](#)
-- [D. Reduce the standard stars for absolute flux calibration](#)
-- [E. A short tutorial to inspect a cube with QFitsView](#)
-- [F. Reduce individual OBs](#)
-- [G. Check for the detection of helper targets](#)
-- [H. Combine all OBs into master cubes](#)
-- [I. Improve OH line subtraction](#)
-- [J. Fix astrometry of individual exposures](#)
-- [Appendix A. Analyzing cubes: continuum subtraction](#)
-- [Appendix B. Analyzing cubes: blind line detection](#)
-- [Appendix C. Analyzing cubes: extracting spectra](#)
-- [Appendix D. Analyzing cubes: fitting lines in spectra](#)
-- [Appendix E. Analyzing cubes: fitting lines in cubes](#)
+<!-- MarkdownTOC -->
+
+- Introduction
+- A. Prepare your computer
+- B. Prepare the data
+- C. Reduce the calibration data
+- D. Reduce the standard stars for absolute flux calibration
+- E. A short tutorial to inspect a cube with QFitsView
+- F. Reduce individual OBs
+- G. Check for the detection of helper targets
+- H. Combine all OBs into master cubes
+- I. Improve OH line subtraction
+- J. Fix astrometry of individual exposures
+- Appendix A. Analyzing cubes: continuum subtraction
+- Appendix B. Analyzing cubes: blind line detection
+- Appendix C. Analyzing cubes: extracting spectra
+- Appendix D. Analyzing cubes: fitting lines in spectra
+- Appendix E. Analyzing cubes: fitting lines in cubes
+
+<!-- /MarkdownTOC -->
+
 
 
 # Introduction
