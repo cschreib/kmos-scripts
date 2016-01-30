@@ -540,7 +540,7 @@ To do so you can use the `contsub.cpp` program provided in this package. For eac
 cphy++ optimize contsub.cpp
 ```
 
-3) Run the following command to automatically produce the continuum subtracted cube for each all your targets at once:
+3) Run the following command to automatically produce the continuum subtracted cube for all your targets at once:
 ```bash
 for f in ../combine_sci_reconstructed_*.fits; do ./contsub $f; done
 ```
