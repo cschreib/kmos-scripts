@@ -2,23 +2,26 @@
 
 # Table of content
 
-- [Instructions for basic and advanced reduction](#)
-- [Introduction](#)
-- [A. Prepare your computer](#)
-- [B. Prepare the data](#)
-- [C. Reduce the calibration data](#)
-- [D. Reduce the standard stars for absolute flux calibration](#)
-- [E. A short tutorial to inspect a cube with QFitsView](#)
-- [F. Reduce individual OBs](#)
-- [G. Check for the detection of helper targets](#)
-- [H. Combine all OBs into master cubes](#)
-- [I. Improve OH line subtraction](#)
-- [J. Fix astrometry of individual exposures](#)
-- [Appendix A. Analyzing cubes: continuum subtraction](#)
-- [Appendix B. Analyzing cubes: blind line detection](#)
-- [Appendix C. Analyzing cubes: extracting spectra](#)
-- [Appendix D. Analyzing cubes: fitting lines in spectra](#)
-- [Appendix E. Analyzing cubes: fitting lines in cubes](#)
+<!-- MarkdownTOC -->
+
+- [Introduction](#introduction)
+- [A. Prepare your computer](#a-prepare-your-computer)
+- [B. Prepare the data](#b-prepare-the-data)
+- [C. Reduce the calibration data](#c-reduce-the-calibration-data)
+- [D. Reduce the standard stars for absolute flux calibration](#d-reduce-the-standard-stars-for-absolute-flux-calibration)
+- [E. A short tutorial to inspect a cube with QFitsView](#e-a-short-tutorial-to-inspect-a-cube-with-qfitsview)
+- [F. Reduce individual OBs](#f-reduce-individual-obs)
+- [G. Check for the detection of helper targets](#g-check-for-the-detection-of-helper-targets)
+- [H. Combine all OBs into master cubes](#h-combine-all-obs-into-master-cubes)
+- [I. Improve OH line subtraction](#i-improve-oh-line-subtraction)
+- [J. Fix astrometry of individual exposures](#j-fix-astrometry-of-individual-exposures)
+- [Appendix A. Analyzing cubes: continuum subtraction](#appendix-a-analyzing-cubes-continuum-subtraction)
+- [Appendix B. Analyzing cubes: blind line detection](#appendix-b-analyzing-cubes-blind-line-detection)
+- [Appendix C. Analyzing cubes: extracting spectra](#appendix-c-analyzing-cubes-extracting-spectra)
+- [Appendix D. Analyzing cubes: fitting lines in spectra](#appendix-d-analyzing-cubes-fitting-lines-in-spectra)
+- [Appendix E. Analyzing cubes: fitting lines in cubes](#appendix-e-analyzing-cubes-fitting-lines-in-cubes)
+
+<!-- /MarkdownTOC -->
 
 
 # Introduction
@@ -537,7 +540,7 @@ To do so you can use the `contsub.cpp` program provided in this package. For eac
 cphy++ optimize contsub.cpp
 ```
 
-3) Run the following command to automatically produce the continuum subtracted cube for each all your targets at once:
+3) Run the following command to automatically produce the continuum subtracted cube for all your targets at once:
 ```bash
 for f in ../combine_sci_reconstructed_*.fits; do ./contsub $f; done
 ```
