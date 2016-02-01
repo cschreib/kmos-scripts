@@ -34,8 +34,6 @@ int main(int argc, char* argv[]) {
     double z0 = dnan;
     double dz = 0.01;
     double width = 150.0;
-    bool subtract_continuum = true;
-    uint_t continuum_width = 100;
     bool fit_background = false;
     double spatial_smooth = 0.0; // radius of the smoothing kernel
     double minsnr = 3.0;
@@ -50,7 +48,7 @@ int main(int argc, char* argv[]) {
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tline, "line"), width,
-        subtract_continuum, continuum_width, minsnr, fit_background, expmap, minexp,
+        minsnr, fit_background, expmap, minexp,
         velocity, spatial_smooth, verbose, oh_threshold, allow_absorption, outdir
     ));
 
@@ -155,24 +153,6 @@ int main(int argc, char* argv[]) {
         !fimg.read_keyword("CD2_1",  cd21)   || !fimg.read_keyword("CD2_2",  cd22)) {
         error("could not read WCS information for spatial axes");
         return 1;
-    }
-
-    // Subtract continuum (optional)
-    // NB: we do it before reducing the wavelength range, in order to use the largest possible
-    // part of the spectrum to properly subtract the continuum. Avoids border effects close to
-    // the edges of the wavelength domain.
-    if (subtract_continuum) {
-        if (verbose) note("estimate and subtract continuum...");
-
-        for (uint_t y : range(cflx.dims[1]))
-        for (uint_t x : range(cflx.dims[2])) {
-            vec1d tmp = cflx(_,y,x);
-            for (uint_t l : range(cflx.dims[0])) {
-                uint_t l0 = max(0, int_t(l)-int_t(continuum_width/2));
-                uint_t l1 = min(cflx.dims[0]-1, int_t(l)+int_t(continuum_width/2));
-                cflx(l,y,x) -= median(tmp[l0-_-l1]);
-            }
-        }
     }
 
     // Build a simple 1D spectrum of the cube to identify covered regions
@@ -414,21 +394,11 @@ void print_help(const std::map<std::string,line_t>& db) {
         "smoothing. Be careful that enabling this option will increase the 'effective' "
         "PSF of your image, which will result in more blurry velocity/redshift/flux maps. "
         "Only enable this option if your data are too noisy.");
-    bullet("subtract_continuum", "Set this flag to zero if you do not want the program "
-        "to estimate the continuum emission of your target(s) from the spectrum. The "
-        "continuum is estimated from the average flux over multiple large spectral "
-        "windows; large enough to wash out any line emission (the size of this window can "
-        "be controlled with the parameter 'continuum_width'). By default this step is "
-        "enabled, and it is recommended to leave it on unless you know that the continuum "
-        "emission of your target(s) is very weak or weakly varying and will not perturb "
-        "the line identification.");
-    bullet("continuum_width=...", "Must be a integer. It defines the number of spectral "
-        "elements that will be averaged to compute the continuum emission. Default is 100 "
-        "pixels.");
     bullet("fit_background", "Set this flag to fit a constant wavelength-independent "
-        "background level to the measured spectrum. Enabling this option is recommended "
-        "only if you decided to disable the continuum subtraction, since it will "
-        "introduce additional uncertainty to the fit (probably not much though).");
+        "background level to the measured spectrum of each pixel. This might be needed "
+        "if 1) the input cube is not continuum-subtracted, or 2) if you have reasons to "
+        "believe the continuum subtraction may have left some residuals. Enabling this "
+        "option will slightly increase the uncertainties.");
     bullet("expmap=...", "Must be a 2D FITS file containing the exposure map of the IFU "
         "in units of exposure time or number of exposures (if exposure time per exposure "
         "is constant). This map will be used with the 'minexp' option to limit the "
@@ -448,7 +418,7 @@ void print_help(const std::map<std::string,line_t>& db) {
         "Default is 3.");
     bullet("oh_threshold", "Must be a number. Give this parameter a value if you want to "
         "exclude from the fit the wavelength regions with strong OH residuals (as "
-        "estiamted from the uncertainty spectrum). The value is such that pixels with an "
+        "estimated from the uncertainty spectrum). The value is such that pixels with an "
         "uncertainty 'E' are flagged out if 'E' is larger than the median uncertainty "
         "by 'oh_threshold' sigma (sigma being the standard deviation of the uncertainties). "
         "A value of 3 or more should be adequate.");

@@ -41,8 +41,6 @@ int main(int argc, char* argv[]) {
     uint_t lambda_pad = 5;
     bool same_width = false;
     bool use_mpfit = false;
-    bool subtract_continuum = true;
-    uint_t continuum_width = 100;
     bool verbose = false;
     bool save_model = false;
     std::string outdir;
@@ -51,8 +49,7 @@ int main(int argc, char* argv[]) {
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tlines, "lines"), width_min, width_max,
-        subtract_continuum, continuum_width, verbose, same_width, save_model, fix_width,
-        use_mpfit, ascii, outdir
+        verbose, same_width, save_model, fix_width, use_mpfit, ascii, outdir
     ));
 
     if (!outdir.empty()) {
@@ -158,20 +155,7 @@ int main(int argc, char* argv[]) {
     vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
     uint_t orig_nlam = lam.size();
 
-    // Subtract continuum (optional)
-    vec1d continuum(lam.size());
-    if (subtract_continuum) {
-        if (verbose) note("estimate and subtract continuum...");
-        vec1d tmp = flx;
-        for (uint_t l : range(nlam)) {
-            uint_t l0 = max(0, int_t(l)-int_t(continuum_width/2));
-            uint_t l1 = min(nlam-1, int_t(l)+int_t(continuum_width/2));
-            continuum[l] = median(tmp[l0-_-l1]);
-        }
-
-        flx -= continuum;
-    }
-
+    // Identify good regions of the spectrum
     vec1b goodspec = is_finite(flx) && is_finite(err) && err > 0;
     vec1u idl = where(goodspec);
     if (idl.size() <= lambda_pad*2) {
@@ -470,10 +454,6 @@ int main(int argc, char* argv[]) {
         ospec.reach_hdu(1);
         ospec.write(nmodel);
         ospec.write_header(fimg.read_header());
-        // Also save the continuum level
-        ospec.reach_hdu(2);
-        ospec.write(continuum);
-        ospec.write_header(fimg.read_header());
     }
 
     return 0;
@@ -513,17 +493,6 @@ void print_help(const std::map<std::string,line_t>& db) {
         "flux of the [SII]6733 line will be forced to be a factor 0.75 lower than that of "
         "[SII]6718.");
     print("\nAvailable options (in order of importance):");
-    bullet("subtract_continuum", "Set this flag to zero if you do not want the program "
-        "to estimate the continuum emission of your target(s) from the spectrum. The "
-        "continuum is estimated from the average flux over multiple large spectral "
-        "windows; large enough to wash out any line emission (the size of this window can "
-        "be controlled with the parameter 'continuum_width'). By default this step is "
-        "enabled, and it is recommended to leave it on unless you know that the continuum "
-        "emission of your target(s) is very weak or weakly varying and will not perturb "
-        "the line identification.");
-    bullet("continuum_width=...", "Must be a integer. It defines the number of spectral "
-        "elements that will be averaged to compute the continuum emission. Default is 100 "
-        "pixels.");
     bullet("width_min=...", "Must be a number. Defines the minimum allowed width for a "
         "line in km/s. Default is 50. Note that this value is not used if 'use_mpfit' is "
         "set (in this case, 'width_min' and 'width_max' are simply used to estimate the "
@@ -544,7 +513,7 @@ void print_help(const std::map<std::string,line_t>& db) {
         "widths diverge to unreasonable values. The default is to let each width vary "
         "freely in the fit.");
     bullet("use_mpfit", "Set this flag to use a non-linear fitting approach to fit the line "
-        "profiles. This method usies the Levenberg-Marquardt technique to fit non linear "
+        "profiles. This method uses the Levenberg-Marquardt technique to fit non linear "
         "models, which is more flexible and correct since it allows simultaneous fit of "
         "the fluxes and line widths of all the lines. However these algorithms are more "
         "unstable and can often not converge. The default method, if this flag is not set, "
@@ -563,10 +532,7 @@ void print_help(const std::map<std::string,line_t>& db) {
         "which could drive the fit toward unrealistic values.");
     bullet("save_model", "Set this flag to also output the best-fit model spectrum. The "
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
-        "spectrum: the first extension is empty, the second contains the flux. If "
-        "continuum subtraction is enabled (see 'subtract_continuum'), the continuum "
-        "spectrum is also available in the third extension (else this extension only "
-        "contains a zero-filled spectrum).");
+        "spectrum: the first extension is empty, the second contains the flux.");
     bullet("outdir", "Name of the directory into which the output files should be created. "
         "Default is the current directory..");
     bullet("ascii", "Set this flag if you want the output catalog to be saved in ASCII "
