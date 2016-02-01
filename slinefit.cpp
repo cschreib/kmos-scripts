@@ -3,12 +3,14 @@
 
 // Structure to define a line group to be fitted simultaneously
 struct line_t {
-    line_t(vec1d lam, vec1d ra) : lambda(lam), ratio(ra) {
+    line_t() = default;
+    line_t(std::string n, vec1d lam, vec1d ra) : name(n), lambda(lam), ratio(ra) {
         ratio /= ratio[0];
     }
 
-    vec1d lambda; // wavelengths of the lines
-    vec1d ratio;  // flux ratios of the lines relative to the first
+    std::string name; // identifier of the line
+    vec1d lambda;     // wavelengths of the lines
+    vec1d ratio;      // flux ratios of the lines relative to the first
 };
 
 // Local functions, defined at the end of the file
@@ -18,11 +20,11 @@ void print_available_lines(const std::map<std::string,line_t>& db);
 int main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
-        {"o2",     line_t({0.3727}, {1.0})},
-        {"o3",     line_t({0.5007, 0.4959}, {1.0, 0.3})},
-        {"hbeta",  line_t({0.4861}, {1.0})},
-        {"halpha", line_t({0.6563}, {1.0})},
-        {"n2",     line_t({0.6584}, {1.0})}
+        {"o2",     line_t("o2",     {0.3727},         {1.0})},
+        {"o3",     line_t("o3",     {0.5007, 0.4959}, {1.0, 0.3})},
+        {"hbeta",  line_t("hbeta",  {0.4861},         {1.0})},
+        {"halpha", line_t("halpha", {0.6563},         {1.0})},
+        {"n2",     line_t("n2",     {0.6584},         {1.0})}
     };
 
     if (argc < 2) {
@@ -77,6 +79,7 @@ int main(int argc, char* argv[]) {
     } else {
         bool bad2 = false;
         for (std::string& l : tlines) {
+            if (l.find(':') != l.npos) continue;
             if (linedb.find(l) == linedb.end()) {
                 error("unknown line '", l, "'");
                 bad = true;
@@ -96,7 +99,37 @@ int main(int argc, char* argv[]) {
     double lambda_min = finf, lambda_max = -finf;
     vec<1,line_t> lines;
     for (std::string& l : tlines) {
-        lines.push_back(linedb.find(l)->second);
+        if (l.find(':') != l.npos) {
+            vec1s spl = split(l, ":");
+            if (spl.size() < 2 || (spl.size() > 2 && spl.size()%2 != 1)) {
+                error("ill-formed line declaration '", l, "'");
+                error("custom line declaration must be of the form 'name:lambda' or "
+                    "'name:lambda1:lambda2:...:ratio1:ratio2,...'");
+                return 1;
+            }
+
+            line_t nl;
+            nl.name = spl[0];
+
+            vec1d nums;
+            if (count(!from_string(spl[1-_], nums)) != 0) {
+                error("could not convert line wavelengths and ratios in '", l, "' into a "
+                    "list of numbers");
+                return 1;
+            }
+
+            if (nums.size() == 1) {
+                nl.lambda = nums;
+            } else {
+                nl.lambda = nums[uindgen(nums.size()/2)];
+                nl.ratio  = nums[uindgen(nums.size()/2) + nums.size()/2];
+            }
+
+            lines.push_back(nl);
+        } else {
+            lines.push_back(linedb.find(l)->second);
+        }
+
         auto lmima = minmax(lines.back().lambda);
         lambda_min = min(lambda_min, lmima.first);
         lambda_max = max(lambda_max, lmima.second);
@@ -468,6 +501,17 @@ void print_help(const std::map<std::string,line_t>& db) {
         "into the '*_slfit.fits' file. You can open it within IDL with 'mrdfits(\"...\", 1)'.");
     print("Available lines:");
     print_available_lines(db);
+    print("\nNote: you can add your own lines either by modifying the source code of the "
+        "program, or directly into the command line arguments. In the 'lines=[...]' "
+        "parameter, you can indeed create a new line (or set of lines) with the synthax "
+        "'name:lambda' (for a single line) or 'name:lambda1:lambda2:...:ratio1:ratio2:...' "
+        "(for a group of lines). In this case, 'name' can be whatever you want (should "
+        "not contain spaces), 'lambda' must be the rest-frame wavelength of the line in "
+        "microns, and 'ratioX' must be the fixed flux ratio of the the line 'X' and the "
+        "first line of the group (i.e., it should be '1' for the first line). For example, "
+        "to fit the [SII] doublet: lines=[s2:0.67183:0.67327:1:0.75]. In the fit, the "
+        "flux of the [SII]6733 line will be forced to be a factor 0.75 lower than that of "
+        "[SII]6718.");
     print("\nAvailable options (in order of importance):");
     bullet("subtract_continuum", "Set this flag to zero if you do not want the program "
         "to estimate the continuum emission of your target(s) from the spectrum. The "

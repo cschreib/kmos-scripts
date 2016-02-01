@@ -2,12 +2,14 @@
 
 // Structure to define a line group to be fitted simultaneously
 struct line_t {
-    line_t(vec1d lam, vec1d ra) : lambda(lam), ratio(ra) {
+    line_t() = default;
+    line_t(std::string n, vec1d lam, vec1d ra) : name(n), lambda(lam), ratio(ra) {
         ratio /= ratio[0];
     }
 
-    vec1d lambda; // wavelengths of the lines
-    vec1d ratio;  // flux ratios of the lines relative to the first
+    std::string name; // identifier of the line
+    vec1d lambda;     // wavelengths of the lines
+    vec1d ratio;      // flux ratios of the lines relative to the first
 };
 
 // Local functions, defined at the end of the file
@@ -17,11 +19,11 @@ void print_available_lines(const std::map<std::string,line_t>& db);
 int main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
-        {"o2",     line_t({0.3727}, {1.0})},
-        {"o3",     line_t({0.5007, 0.4959}, {1.0, 0.3})},
-        {"hbeta",  line_t({0.4861}, {1.0})},
-        {"halpha", line_t({0.6563}, {1.0})},
-        {"n2",     line_t({0.6584}, {1.0})}
+        {"o2",     line_t("o2",     {0.3727},         {1.0})},
+        {"o3",     line_t("o3",     {0.5007, 0.4959}, {1.0, 0.3})},
+        {"hbeta",  line_t("hbeta",  {0.4861},         {1.0})},
+        {"halpha", line_t("halpha", {0.6563},         {1.0})},
+        {"n2",     line_t("n2",     {0.6584},         {1.0})}
     };
 
     if (argc < 2) {
@@ -68,6 +70,21 @@ int main(int argc, char* argv[]) {
         note("available lines:");
         print_available_lines(linedb);
         bad = true;
+    } else if (tline.find(':') != tline.npos) {
+        vec1s spl = split(tline, ":");
+        if (spl.size() < 2 || (spl.size() > 2 && spl.size()%2 != 1)) {
+            error("ill-formed line declaration '", tline, "'");
+            error("custom line declaration must be of the form 'name:lambda' or "
+                "'name:lambda1:lambda2:...:ratio1:ratio2,...'");
+            bad = true;
+        }
+
+        vec1d nums;
+        if (count(!from_string(spl[1-_], nums)) != 0) {
+            error("could not convert line wavelengths and ratios in '", tline, "' into a "
+                "list of numbers");
+            bad = true;
+        }
     } else if (linedb.find(tline) == linedb.end()) {
         error("unknown line '", tline, "'");
         note("available lines:");
@@ -77,8 +94,29 @@ int main(int argc, char* argv[]) {
 
     if (bad) return 1;
 
-    // Get line in database
-    const line_t& line = linedb.find(tline)->second;
+    // Get line in database or make it from scratch
+    const line_t& line = [&]() {
+        if (tline.find(':') == tline.npos) {
+            vec1s spl = split(tline, ":");
+
+            static line_t nl;
+            nl.name = spl[0];
+
+            vec1d nums;
+            from_string(spl[1-_], nums);
+
+            if (nums.size() == 1) {
+                nl.lambda = nums;
+            } else {
+                nl.lambda = nums[uindgen(nums.size()/2)];
+                nl.ratio  = nums[uindgen(nums.size()/2) + nums.size()/2];
+            }
+
+            return nl;
+        } else {
+            return linedb.find(tline)->second;
+        }
+    }();
 
     // Read cube
     if (verbose) note("read input cube...");
