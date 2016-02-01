@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
 
     double z0 = dnan;
     double dz = 0.01;
-    double width = 0.0007;
+    double width = 150.0;
     bool subtract_continuum = true;
     uint_t continuum_width = 100;
     bool fit_background = false;
@@ -291,9 +291,10 @@ int main(int argc, char* argv[]) {
         for (uint_t iz : range(zs)) {
             vec1d model(lam.dims);
             for (uint_t il : range(line.lambda)) {
+                double tw = (width/3e5)*line.lambda[il]*(1.0+zs[iz]);
                 model += line.ratio[il]*exp(
-                    -sqr(line.lambda[il]*(1.0+zs[iz]) - lam)/(2.0*sqr(width))
-                )/(sqrt(2.0*dpi)*width*1e4);
+                    -sqr(line.lambda[il]*(1.0+zs[iz]) - lam)/(2.0*sqr(tw))
+                )/(sqrt(2.0*dpi)*tw*1e4);
             }
 
             linfit_result res;
@@ -399,9 +400,9 @@ void print_help(const std::map<std::string,line_t>& db) {
         "to fully encompass the range of redshifts of your object(s) and the width of the "
         "line(s), but not too large so as to avoid fitting other nearby lines or "
         "additional noise.");
-    bullet("width=...", "Must be a number. Defines the width of the line in microns. This "
+    bullet("width=...", "Must be a number. Defines the width of the line in km/s. This "
         "value is kept fixed in the fitting process to reduce complexity and avoid "
-        "degeneracies in low S/N situations. Default is 0.0007 um. It is up to you to "
+        "degeneracies in low S/N situations. Default is 150 km/s. It is up to you to "
         "find out the adequate width of your lines.");
     bullet("velocity", "Set this flag if you want the program to generate a velocity map "
         "rather than a redshift map.");
