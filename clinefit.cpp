@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tline, "line"), width,
-        minsnr, fit_background, expmap, minexp,
+        minsnr, fit_background, expmap, minexp, delta_z,
         velocity, spatial_smooth, verbose, oh_threshold, allow_absorption, outdir
     ));
 
