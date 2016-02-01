@@ -192,13 +192,12 @@ int main(int argc, char* argv[]) {
     }
 
     // Define redshift grid so as to have the requested number of samples per wavelength element
-    double dlam = lam[1]-lam[0];
-    double tdz = delta_z*dlam/(lines[0].lambda[0]*(1.0+z0));
+    double tdz = delta_z*cdelt/(lines[0].lambda[0]*(1.0+z0));
     uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
     // Define width grid so as to have the requested number of samples per wavelength element
-    double dwidth = 3e5*delta_width*dlam/(lines[0].lambda[0]*(1.0+z0));
+    double dwidth = 3e5*delta_width*cdelt/(lines[0].lambda[0]*(1.0+z0));
     uint_t nwidth = ceil((width_max - width_min)/dwidth);
     vec1d ws = rgen(width_min, width_max, nwidth);
 

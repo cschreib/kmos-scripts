@@ -252,8 +252,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Define redshift grid so as to have the requested number of samples per wavelength element
-    double dlam = lam[1]-lam[0];
-    double tdz = delta_z*dlam/(line.lambda[0]*(1.0+z0));
+    double tdz = delta_z*cdelt/(line.lambda[0]*(1.0+z0));
     uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
@@ -382,7 +381,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "'z0-dz' and 'z0+dz'. Default is dz=0.01. You want this value to be large enough "
         "to fully encompass the range of redshifts of your object(s) and the width of the "
         "line(s), but not too large so as to avoid fitting other nearby lines or "
-        "additional noise.");
+        "additional noise. First try with the default value, which corresponds to a "
+        "maximum velocity offset of 3000 km/s in either direction, then identify spots "
+        "in the image with unusual velocity offsets. If these do not correspond to real "
+        "sources, adjust the value of dz to exclude them.");
     bullet("delta_z=...", "Must be a number. Defines the size of a step in the grid of "
         "redshifts, as the fraction of the size of a wavelength element of the spectrum. "
         "In other words, given the spectral resolution R of your spectrum, the redshift "
