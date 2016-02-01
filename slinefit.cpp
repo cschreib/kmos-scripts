@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
     double width_min = 50.0;
     double width_max = 500.0;
     double delta_width = 0.2;
+    double delta_z = 0.2;
     double fix_width = dnan;
     uint_t lambda_pad = 5;
     bool same_width = false;
@@ -190,12 +191,13 @@ int main(int argc, char* argv[]) {
            lam[0], " and ", lam.back(), " um...");
     }
 
-    // Define redshift grid so as to have two redshift samples per wavelength element
+    // Define redshift grid so as to have the requested number of samples per wavelength element
     double dlam = lam[1]-lam[0];
-    uint_t nz = ceil(2*(2*dz)/(dlam/lines[0].lambda[0]));
+    double tdz = delta_z*dlam/(lines[0].lambda[0]*(1.0+z0));
+    uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
-    // Define width grid so as to have four width samples per wavelength element
+    // Define width grid so as to have the requested number of samples per wavelength element
     double dwidth = 3e5*delta_width*dlam/(lines[0].lambda[0]*(1.0+z0));
     uint_t nwidth = ceil((width_max - width_min)/dwidth);
     vec1d ws = rgen(width_min, width_max, nwidth);
@@ -203,10 +205,10 @@ int main(int argc, char* argv[]) {
     // Perform a redshift search
     if (verbose) {
         if (!use_mpfit && !is_finite(fix_width)) {
-            note("redshift search (", nz, " redshifts, ", nwidth, " line widths, "
-                "delta sigma = ", ws[1] - ws[0], ")...");
+            note("redshift search (", nz, " redshifts, step = ", zs[1] - zs[0], ", ",
+                nwidth, " line widths, step = ", ws[1] - ws[0], ")...");
         } else {
-            note("redshift search (", nz, " redshifts)...");
+            note("redshift search (", nz, " redshifts, step = ", zs[1] - zs[0], ")...");
         }
     }
 
@@ -493,6 +495,14 @@ void print_help(const std::map<std::string,line_t>& db) {
         "flux of the [SII]6733 line will be forced to be a factor 0.75 lower than that of "
         "[SII]6718.");
     print("\nAvailable options (in order of importance):");
+    bullet("delta_z=...", "Must be a number. Defines the size of a step in the grid of "
+        "redshifts, as the fraction of the size of a wavelength element of the spectrum. "
+        "In other words, given the spectral resolution R of your spectrum, the redshift "
+        "step will be equal to delta_z/R. Default is 0.2, which corresponds to 0.00005 "
+        "at R=3800 (H+K) and 0.00003 at R=7100 (K). There is no much need to user smaller "
+        "steps since this is already hitting the limits of the spectral resolution, "
+        "however you may wish to increase the size of the step if you need more "
+        "performance.");
     bullet("width_min=...", "Must be a number. Defines the minimum allowed width for a "
         "line in km/s. Default is 50. Note that this value is not used if 'use_mpfit' is "
         "set (in this case, 'width_min' and 'width_max' are simply used to estimate the "
@@ -501,7 +511,9 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("width_max=...", "See above. Default is 500 km/s.");
     bullet("delta_width=...", "Must be a number. Defines the size of a step in the grid of "
         "line widths, as the fraction of the size of a wavelength element of the spectrum. "
-        "Default is 0.2, which at R=3000 corresponds to 16 km/s.");
+        "In other words, given the spectral resolution R of your spectrum, the width step "
+        "will be equal to c*delta_width/R. Default is 0.2, which at corresponds to 15 km/s "
+        "at R=3800 (H+K) and 8 km/s at R=7100 (K).");
     bullet("same_width", "Set this flag if you want to force all lines to have the same "
         "width, rather than fit them independently. This can help solving "
         "fit instability issues if some lines are very low S/N and the fitted line widths "

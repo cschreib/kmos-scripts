@@ -34,6 +34,7 @@ int main(int argc, char* argv[]) {
     double z0 = dnan;
     double dz = 0.01;
     double width = 150.0;
+    double delta_z = 0.2;
     bool fit_background = false;
     double spatial_smooth = 0.0; // radius of the smoothing kernel
     double minsnr = 3.0;
@@ -250,14 +251,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Define redshift grid so as to have two redshift samples per wavelength element
+    // Define redshift grid so as to have the requested number of samples per wavelength element
     double dlam = lam[1]-lam[0];
-    uint_t nz = 2*(2*dz)/(dlam/line.lambda[0]);
-
+    double tdz = delta_z*dlam/(line.lambda[0]*(1.0+z0));
+    uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
     // Perform a redshift search for each pixel of the 2D map
-    if (verbose) note("redshift search...");
+    if (verbose) {
+        note("redshift search (", nz, " redshifts, step = ", zs[1] - zs[0], ")...");
+    }
 
     vec2d chi2(cflx.dims[1], cflx.dims[2]); chi2[_] = dinf;
     vec2d z(cflx.dims[1], cflx.dims[2]); z[_] = dnan;
@@ -380,6 +383,14 @@ void print_help(const std::map<std::string,line_t>& db) {
         "to fully encompass the range of redshifts of your object(s) and the width of the "
         "line(s), but not too large so as to avoid fitting other nearby lines or "
         "additional noise.");
+    bullet("delta_z=...", "Must be a number. Defines the size of a step in the grid of "
+        "redshifts, as the fraction of the size of a wavelength element of the spectrum. "
+        "In other words, given the spectral resolution R of your spectrum, the redshift "
+        "step will be equal to delta_z/R. Default is 0.2, which corresponds to 0.00005 "
+        "at R=3800 (H+K) and 0.00003 at R=7100 (K). There is no much need to user smaller "
+        "steps since this is already hitting the limits of the spectral resolution, "
+        "however you may wish to increase the size of the step if you need more "
+        "performance.");
     bullet("width=...", "Must be a number. Defines the width of the line in km/s. This "
         "value is kept fixed in the fitting process to reduce complexity and avoid "
         "degeneracies in low S/N situations. Default is 150 km/s. It is up to you to "
