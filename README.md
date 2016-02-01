@@ -216,9 +216,9 @@ cphy++ optimize reduce.cpp
 ```
 
 3) Now copy the "make_calib.sh" file into the working directory. Open it to make sure that :
-- all the calibration sets are listed in the CALIBS variable
-- the raw data directory is correct in RAW_DIR
-- the value of GRATING matches your observations (the format is `XXX`, where "X" is the name of the band in which you observe; by default is it the K band, so `GRATING=KKK`; in our some other of our own KMOS programs we used H+K, so `GRATING=HKHKHK`; you get the point).
+- all the calibration sets are listed in the `CALIBS` variable
+- the raw data directory is correct in `RAW_DIR`
+- the value of `GRATING` matches your observations (the format is `XXX`, where "X" is the name of the band in which you observe; by default is it the K band, so `GRATING=KKK`; in our own KMOS programs we used H+K, so `GRATING=HKHKHK`; you get the point).
 
 Then run it.
 ```bash
@@ -248,7 +248,7 @@ chmod +x reduce_calib.sh
 
 - badpixel_dark.fits: flag "hot" pixels in the detector with 0, and good pixels with 1. The file has 3 extensions, one for each detector. This "badpixel" map is only used internally by the calibration reduction, science frames use the badpixel maps presented below. Most of the pixels should be equal to 1, and many small spots should be flagged with 0.
 
-- badpixel_flat_XXX.fits: same as above, but with 3x6 extensions. For each 3 detectors, this image contains the badpixel mask at 6 different telescope rotator angle (see the keyword "ESO PRO ROT NAANGLE"). Your science data uses a single rotator angle, and the pipeline will pick the closest badpixel mask in this file. In addition to "badpixel_dark.fits", these images also flag out the pixels that are not illuminated by any IFU. The resulting file should look like "badpixel_dark.fits", but with 14x8 vertical stripes.
+- badpixel_flat_XXX.fits: same as above, but with 3x6 extensions. For each 3 detectors, this image contains the badpixel mask at 6 different telescope rotator angle (see the keyword "ESO PRO ROT NAANGLE"). Your science data uses a single rotator angle, and the pipeline will interpolate between the two closest badpixel mask in this file. In addition to "badpixel_dark.fits", these images also flag out the pixels that are not illuminated by any IFU. The resulting file should look like "badpixel_dark.fits", but with 14x8 vertical stripes.
 
 - master_dark.fits: "zero flux" image of each detector, when the telescope is not observing anything (not even the sky). The FITS extensions of these files are the same as for "badpixel_dark.fits" maps (3 extensions). The maps should be fairly homogeneous, with values close to 0.
 
@@ -258,7 +258,7 @@ chmod +x reduce_calib.sh
 
 Sometimes, you may see that there is a huge vertical "gap" in one of the calibration images, for example in "badpixel_flat", "master_flat", "xcal", "ycal" and "lcal". This simply means that one of the IFU was disabled when they did the calibration (and probably, also for your observation, but it may be good to check).
 
-If something goes wrong, e.g. if one of the files above is missing or weird, open the "reduce.sh" script and launch each reduction step one at a time. Then look at the "esorex.log" file to see if it is telling you something. It happened to us in a previous KMOS program that one of the calibration set was bugged, and could not be reduced. In this case the solution is to forget about this calibration set and use another one for the observations that depended on it.
+If something goes wrong, e.g. if one of the files above is missing or weird, open the "reduce.sh" script and launch each reduction step one at a time. Then look at the "esorex.log" file to see if it is telling you something. It happened to us in a previous KMOS program that one of the calibration set was bugged, and could not be reduced. In this case the easy solution was to forget about this calibration set and use another one for the observations that depended on it, but you can also try to fix the issue yourself if you feel up to it.
 
 # D. Reduce the standard stars for absolute flux calibration
 
@@ -300,7 +300,7 @@ chmod +x reduce_stdstar.sh
 ./reduce_stdstar.sh
 ```
 
-4) I advise you to inspect the result of this reduction, to see if everything went well. In each "calib-std-XX" directory the pipeline produces several files, including the full KMOS spectral cube, the extracted spectrum, and the continuum image. Use QFitsView to inspect those (see next section for a short tutorial). In particular, take look at each of the 3 extensions of `std_image_XXX.fits`. These are collapsed images of the standard stars; in principle you should see a bright source at the center of the IFU.
+4) I advise you to inspect the result of this reduction, to see if everything went well. In each `calib-std-XX` directory the pipeline produces several files, including the full KMOS spectral cube, the extracted spectrum, and the continuum image of the standard stars. Use QFitsView to inspect those (see next section for a short tutorial). In particular, take look at each of the 3 extensions of `std_image_XXX.fits`. These are collapsed images of the standard stars; in principle you should see a bright source at the center of the IFU.
 
 In one of the calibration set we received, two out of three of these stars were almost out of the field of view of the IFU. The reduction went without telling us, but the flux calibration was completely off, increasing the noise in the final reduced science data by up to 20%. In some other cases the star could not even be seen in the IFU. The solution in all these cases was to ignore these faulty standard stars and use another set that was observed a couple of hours after.
 
@@ -312,7 +312,7 @@ In one of the calibration set we received, two out of three of these stars were 
 
 3) This will show the cube of the 1st IFU in the file. Unfortunately, for the standard stars, only 3 IFUs are actually used, so you may have to open a different extension to actually see something.
 
-4) Now QFitsView shows you one image in the middle of the cube, the spectral element 1024 (this number can be found in a small edit box in the tool bar at the top of the window). What you usually want to do first is to display the continuum image, i.e., the sum of the cube on the wavelength axis. You can do that by choosing "Average" or "Median" in the drop down list to the right of "1024" (by default it is set to "Single"). For the standard star it doesn't change much, since the S/N is very high even for each spectral element, but for your galaxies you usually only detect them in the continuum.
+4) Now QFitsView shows you one image in the middle of the cube, the spectral element 1024 (this number can be found in a small edit box in the tool bar at the top of the window). What you usually want to do first is to display the continuum image, i.e., the sum of the cube on the wavelength axis. You can do that by choosing "Average" or "Median" in the drop down list to the right of "1024" (by default it is set to "Single"). For the standard star it doesn't change much, since the S/N is very high even for each spectral element, but for your galaxies you usually only detect them in the "Median" image ("Median" suffers less from OH lines fluctuation than "Average", so it should give you higher S/N).
 
 5) Then you can move your mouse over the image. At the bottom of the window you should see the spectrum change in real time: this is the spectrum of the pixel currently below your mouse. Since sources are usually spread over several pixels (because they are extended or because of the seeing), you usually want to average multiple neighboring pixels together. You can do that by changing the "Single pixel" (close to the spectrum) into "Circular", and increase the radius "R1" to 2 or 3 pixels. This is simply aperture photometry :) You will see now the shape of your aperture displayed under the mouse pointer, and the spectrum is now averaged over all these pixels, enhancing the S/N.
 
@@ -351,7 +351,7 @@ If there is nothing, then the reduction failed. You can inspect the content of t
 
 # G. Check for the detection of helper targets
 
-1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Some times we chose instead (or in addition) to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the reconstruction. If you did not observe specific targets for this purpose, you can also use one of your science targets, provided it at least as bright in the NIR continuum and not too extended.
+1) Next you want to make sure that your "helper" targets can be seen in the continuum image for each OB. These are stars of magnitude H=21 (for DIT=600s), as informally recommended in the manual. Some times we chose instead (or in addition) to observe a z=0 galaxy with a Pashen-alpha line: it will show both a continuum and line detection in each OB, so it can be used to check the wavelength calibration and how the line is affected by the cube reconstruction. If you did not observe specific targets for this purpose, you can also use one of your science targets, provided it at least as bright in the NIR continuum and not too extended.
 
 NB: At this stage there are some other things we can do to improve the reduction, like improving the sky subtraction and astrometry, but we will see that later on. For now we will just check that the helper targets are well detected. To do these checks, you could use QFitsView and open each reduced cube one by one. This is tedious... Instead you can follow the procedure below, which I find more convenient.
 
@@ -360,7 +360,7 @@ NB: At this stage there are some other things we can do to improve the reduction
 fitshdr sci_reconstructed_KMOS.2015-12-26T05\:56\:49.884-sci.fits | grep -E "ARM[0-9]+ NAME"
 ```
 
-3) This will print the list of the IFUs "ARMx" (where "x" is the IFU ID) and the corresponding targets. From there, identify the name of your helper targets. You may have to repeat the above command for another OB, if you have multiple target lists.
+3) This will print the list of the IFUs "ARMx" (where "x" is the IFU ID) and the corresponding targets. From there, identify the name of your helper targets. You may have to repeat the above command for another exposure, if you have multiple target lists.
 
 4) Now copy the C++ program "extract_ifu.cpp" into the working directory and compile it:
 ```bash
@@ -414,7 +414,7 @@ chmod+x make_combine.sh
 
 3) This creates a new directory called "sci-master" with the usual reduction script and SOF file. All the exposures of your program will be combined. If you have identified problematic exposures (for example because the helper targets could not be detected or strongly off-centered), you can remove the corresponding files from the "combine.sof" file. Then run the "reduce.sh" script.
 
-The pipeline now combines all OBs and the dither patterns, taking into account the dithering position offset. It will create two files per target, one is the actual data cube, and the other is the exposure map which tells you how many exposures contribute to each spatial position of the IFU (it is not that useful, since it is not taking into account flagged pixels etc).
+The pipeline now combines all OBs and the dither patterns, taking into account the dithering position offset. It will create two files per target, one is the actual data cube, and the other is the exposure map which tells you how many exposures contribute to each spatial position of the IFU.
 
 4) Now you can play with QFitsView to inspect your final data :)
 
