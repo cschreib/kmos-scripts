@@ -258,7 +258,10 @@ int main(int argc, char* argv[]) {
             sof << kmos_calib_dir+"kmos_wave_band.fits     WAVE_BAND\n";
             sof << kmos_calib_dir+"kmos_spec_type.fits     SPEC_TYPE_LOOKUP\n";
             sof << kmos_calib_dir+"kmos_atmos_"+band+".fits      ATMOS_MODEL\n";
-            sof << kmos_calib_dir+"kmos_solar_"+band+"_"+solar_wave+".fits SOLAR_SPEC\n";
+            if (!solar_wave.empty()) {
+                sof << kmos_calib_dir+"kmos_solar_"+band+"_"+solar_wave+".fits SOLAR_SPEC\n";
+            }
+
             if (!add_calib(sof)) {
                 error("cannot proceed");
                 return 1;
