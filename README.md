@@ -596,6 +596,10 @@ The output catalog is in FITS format by default, you can open it with IDL and `m
 
 6) The program also produces a "segmentation cube" where the spatial extents of all sources is stored in an integer cube. There, each pixel value tells you to which source it belongs (zero meaning no detection). You can use that to evaluate the reliability of a detection (what does it look like; is it a concentrated blob or a vague irregular feature that may be caused by a data reduction problem?).
 
+7) If you want extra help, just call the program without argument. This will display a description of all the available command line parameters and the behavior of the program.
+```bash
+./cdetect
+```
 
 # Appendix C. Analyzing cubes: extracting spectra
 
@@ -666,9 +670,63 @@ The first contains the background level, while the second and third contain the 
 
 # Appendix D. Analyzing cubes: fitting lines in spectra
 
-Describe `slinefit`. [WIP].
+Once you have extracted the spectrum of one of you object, regardless of the method you used, you will want to find either one or all of the following: 1) the redshift of your object, 2) the line fluxes and 3) the velocity dispersions.
+
+To do so, you can use the `slinefit` program provided in this package. The way it works is very simple: you give it a redshift window to search in, say z=2.2 to z=2.6, and the lines you expect to detect, say [OIII] and Halpha. The program will then generate a fine grid of redshifts within the chosen interval, and will try to fit the redshifted lines on the spectrum for each redshift of the grid. The redshift that provides the smallest chi2 will be chosen as the redshift of your source. In the fit, both the flux of the lines and their velocity dispersion (i.e., the width) are varied, and lines can be organized in groups with fixed ratios (e.g., if you know, that [OIII]5007 and [OIII]4959 always have the same flux ratio).
+
+Note an important fact: for the sake of simplicity, the program does not deal with continuum emission, so if you think your target can have non-negligible continuum flux in the spectrum, you should re-extract the spectrum on a continuum-subtracted cube before attempting to fit the lines.
+
+Below is a short overview of the main features of the program.
+
+1) First copy the `slinefit.cpp` file in the directory where you extracted your spectra, and compile it:
+```bash
+cphy++ optimize slinefit.cpp
+```
+
+2) The simplest way to use this program is the following:
+```bash
+./slinefit combine_sci_reconstructed_xxx_spec.fits z0=2.5 dz=0.3 lines=[hbeta,o3,halpha,n2] verbose
+```
+
+In `lines=[...]` you can list as many lines as you wish, in whatever order, provided that they exist in the line data base of the program. Currently there are very few lines in this data base, and only the most common ones are listed. If needed, you can add new lines yourself quite easily without having to modify the code of the program, there is a special syntax for that. For more information and for the list of lines in the data base, please look at the embedded help of the program, which you can see by just calling `./slinefit` without arguments.
+
+3) By default, line widths will be allowed to vary between 50 and 500 km/s, to ensure that the fit does not diverge towards unrealistic line profiles. You can tweak these values with the `width_min` and `width_max` parameters. If one of your line is fit with a width equal to `width_min`, that probably means the line is spectrally unresolved, and you should not worry about it. However, if the line is fit with a width equal to `width_max`, then there is probably something wrong: double check the fit! If you do not want the line width to vary, you can impose a fixed value using the `fix_width` parameter. Lastly, as an intermediate solution, you can also choose to use the same line width for all the lines using the `same_width` flag.
+
+4) Once the fit is done, the program will tell you what is the best-fit redshift, and will create a catalog containing the line fluxes and widths, as well as an estimation of the redshift "probability" distribution (inferred from the reduced chi2). By default this catalog is in FITS format, but you can also ask for plain ASCII file using the `ascii` flag, in which case the program will create two files: one for the line fluxes and another for the redshift distribution. If you set the `save_model` flag, it will also output a new spectrum containing the best-fit model spectrum.
+
+5) More details can be obtained by looking at the embedded help:
+```bash
+./slinefit
+```
 
 
 # Appendix E. Analyzing cubes: fitting lines in cubes
 
-Describe `clinefit`. [WIP].
+In the previous section we saw how one can measure the redshift and line properties from a spectrum. However, this is forgetting one important fact: KMOS is an IFU spectrograph! Therefore instead of working with 1D spectra, we can work in the spectral cube directly. This is the purpose of the `clinefit` program, which works very similarly to `slinefit`. The main difference is that `clinefit` will fit the spectrum of each pixel of the IFU independently, and produce a "redshift map", "velocity map" and "flux map" for a given line.
+
+Because it works with individual pixels, this tool has to cope with poorer S/N than `slinefit`. For this reason, there are some other important differences in the way it should be used. First, you should already have an accurate measurement of the redshift of your object, so that you can 1) set this redshift as the value of `z0` (this will be used as the reference redshift to compute line of sight velocity offsets) and 2) pick a small value of `dz` (the size of the redshift window to consider in the fit). Indeed, if you pick a too high value for `dz`, you will start to fit noise features at very different redshifts, which have nothing to do with your target. If you expect a maximum velocity offset of dV km/s, then use `dz ~ dV/3e5` (i.e., `dz ~ 0.005` for `dV = 1500 km/s`; and you should add a bit of margin to make sure to encompass the whole range, so in this case `dz=0.007` is a good choice).
+
+Contrary to `slinefit`, here you only provide a single line in `line=...`. There you can specify the name of one of the lines present in the program's data base, or use a special syntax to define your own line as in `slinefit`. Also contrary to `slinefit`, the width of the line is not allowed to vary, and is fixed to the value of the parameter `width` (150 km/s by default). It is up to you to figure out the best choice for this parameter, for example by first extracting a 1D spectrum in a small but bright region of the IFU (small to avoid line broadening because of velocity gradients) and fitting the line width there.
+
+There are some other tweaks you will want to investigate, for example flagging the spectral regions containing bright OH lines to avoid fitting sky line residuals (`oh_threshold` parameter), flagging the IFU pixels with poor coverage (as in `multispecfit`, with the `expmap` and `minexp` parameters), or applying spatial smoothing (as in `cdetect`, with the `spatial_smooth` parameter) to enhance the S/N at the expense of spatial resolution. By default, the program will only fit for emission features: negative line fluxes are discarded, which essentially removes half of the strong noise fluctuations (you can change that with the `allow_absorption` flag). You can find more detailed information in the embedded help of the program, which you can reach by simply calling the program without arguments: `./clinefit`.
+
+Note that, as for `slinefit`, this tool does not deal with continuum emission for simplicity. You have to subtract it yourself (e.g., using the `contsub` program) before attempting to fit the lines.
+
+Below is an example of how the program is used.
+
+1) First copy the `clinefit.cpp` file in the directory where you extracted your spectra, and compile it:
+```bash
+cphy++ optimize clinefit.cpp
+```
+
+2) The standard call procedure is the following:
+```bash
+./clinefit combine_sci_reconstructed_xxx_contsub.fits z0=2.574 dz=0.007 line=o3 verbose
+```
+
+This will create one file, in this case `combine_sci_reconstructed_xxx_contsub_lfit_o3.fits`, containing multiple 2D images in different extensions: the line redshift map, the line flux map, the uncertainty map, the chi2 map, and the S/N map. If you set the `velocity` flag, the redshift map will be replaced by a velocity map. By default the program will flag out from the redshift (or velocity) map all the pixels which have S/N < 3; you can customize this value using the `minsnr` parameter.
+
+3) More details can be obtained by looking at the embedded help:
+```bash
+./clinefit
+```
