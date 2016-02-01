@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
 
     // Get line in database or make it from scratch
     const line_t& line = [&]() {
-        if (tline.find(':') == tline.npos) {
+        if (tline.find(':') != tline.npos) {
             vec1s spl = split(tline, ":");
 
             static line_t nl;
