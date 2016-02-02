@@ -418,10 +418,41 @@ int main(int argc, char* argv[]) {
     double zlow = z - interpolate(zs, cpz, 0.16);
     double zup = interpolate(zs, cpz, 0.84) - z;
 
-    if (verbose) print("best redshift: ", z, " + ", zup, " - ", zlow, " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+    if (verbose) {
+        print("best redshift: ", z, " + ", zup, " - ", zlow,
+            " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+    }
 
     // Rescale fluxes and uncertainties
     flux *= 1e-17; flux_err *= 1e-17;
+
+    // Build llambda
+    vec1d llambda;
+    for (uint_t il : range(lines)) {
+        llambda.push_back(lines[il].lambda[0]*(1.0 + z));
+    }
+
+    // Ungroup line groups
+    for (uint_t il : range(lines)) {
+        auto& l = lines[il];
+
+        if (l.lambda.size() == 1) continue;
+        for (uint_t i : range(1, l.lambda.size())) {
+            flux.push_back(flux[il]*l.ratio[i]);
+            flux_err.push_back(flux_err[il]*l.ratio[i]);
+            width.push_back(width[il]);
+            width_err.push_back(width_err[il]);
+            tlines.push_back(tlines[il]+"-"+strn(i+1));
+            llambda.push_back(l.lambda[il]*(1.0 + z));
+        }
+
+        tlines[il] = tlines[il]+"-1";
+    }
+
+    // Sort by wavelength
+    vec1u ids = sort(llambda);
+    flux = flux[ids]; flux_err = flux_err[ids]; width = width[ids]; width_err = width_err[ids];
+    llambda = llambda[ids];
 
     // Write the result
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
@@ -430,7 +461,8 @@ int main(int argc, char* argv[]) {
     if (ascii) {
         vec1s hdr = {"line", "flux [erg/s/cm2]", "error", "width [um]", "error"};
         file::write_table_hdr(filebase+"_slfit_lines.cat", 18, hdr,
-            tlines, strna_sci(flux), strna_sci(flux_err), strna_sci(width), strna_sci(width_err)
+            tlines, llambda, strna_sci(flux), strna_sci(flux_err), strna_sci(width),
+            strna_sci(width_err)
         );
 
         hdr = {"redshift", "P(z)"};
@@ -438,7 +470,7 @@ int main(int argc, char* argv[]) {
     } else {
         fits::output_table otbl(filebase+"_slfit.fits");
         otbl.write_columns(ftable(chi2, z, zup, zlow, flux, flux_err, width, width_err));
-        otbl.write_columns("lines", tlines, "pzx", zs, "pzy", pz);
+        otbl.write_columns("lambda", llambda, "lines", tlines, "pzx", zs, "pzy", pz);
     }
 
     if (save_model) {
