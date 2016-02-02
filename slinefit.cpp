@@ -453,7 +453,7 @@ int main(int argc, char* argv[]) {
             width.push_back(width[il]);
             width_err.push_back(width_err[il]);
             tlines.push_back(tlines[il]+"-"+strn(i+1));
-            llambda.push_back(l.lambda[il]*(1.0 + z));
+            llambda.push_back(l.lambda[i]*(1.0 + z));
         }
 
         tlines[il] = tlines[il]+"-1";
