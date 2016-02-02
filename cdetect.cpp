@@ -24,21 +24,67 @@ int main(int argc, char* argv[]) {
     double error_scale = 1.0;
     std::string outdir;
     bool ascii = false;
+    std::string semethod = "stddevneg";
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, subtract_continuum, continuum_width, verbose, spectral_bin,
-        error_scale, outdir, ascii));
+        error_scale, outdir, ascii, name(semethod, "emethod")));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
         file::mkdir(outdir);
     }
 
+    // Find out which method to use to compute the uncertainties
+    enum class error_method {
+        pipeline,
+        mad,
+        stddev,
+        madneg,
+        stddevneg
+    } emethod = error_method::stddevneg;
+
+    vec<1,std::pair<std::string,error_method>> semethod_dict = {
+        {"pipeline",  error_method::pipeline},
+        {"mad",       error_method::mad},
+        {"stddev",    error_method::stddev},
+        {"madneg",    error_method::madneg},
+        {"stddevneg", error_method::stddevneg},
+    };
+
+    bool found_method = false;
+    for (auto& d : semethod_dict) {
+        if (d.first == semethod) {
+            emethod = d.second;
+            found_method = true;
+            break;
+        }
+    }
+
+    if (!found_method) {
+        error("unknown method '", semethod, "' to compute uncertainties");
+
+        auto pair_first = vectorize_lambda([](const std::pair<std::string,error_method>& p) {
+            return p.first;
+        });
+
+        note("must be one of: ", collapse(pair_first(semethod_dict), ", "));
+
+        return 1;
+    }
+
     // Read cube
     std::string infile = argv[1];
     vec3d cube;
     fits::input_image fimg(infile);
+    fimg.reach_hdu(1);
     fimg.read(cube);
+
+    vec3d perror;
+    if (emethod == error_method::pipeline) {
+        fimg.reach_hdu(2);
+        fimg.read(perror);
+    }
 
     // Build wavelength axis
     uint_t nlam = cube.dims[0];
@@ -65,6 +111,13 @@ int main(int argc, char* argv[]) {
         cube.resize(nlam, cube.dims[1], cube.dims[2]);
         cube[_] = 0;
 
+        vec3d operror;
+        if (emethod == error_method::pipeline) {
+            operror = perror;
+            perror.resize(cube.dims);
+            perror[_] = 0;
+        }
+
         // Keep track of how many pixels were used in the sum
         vec3u cnt(cube.dims);
 
@@ -75,11 +128,20 @@ int main(int argc, char* argv[]) {
                 vec1u idg = where(is_finite(tmp));
                 cube(l,_,_)[idg] += tmp[idg];
                 cnt(l,_,_)[idg] += 1;
+
+                if (emethod == error_method::pipeline) {
+                    tmp = operror(l*spectral_bin + i,_,_);
+                    perror(l,_,_)[idg] += sqr(tmp[idg]);
+                }
             }
         }
 
         cube /= cnt;
         exposure = 1/sqrt(cnt);
+
+        if (emethod == error_method::pipeline) {
+            perror = sqrt(perror)/cnt;
+        }
 
         // Update wavelength array
         crpix -= (spectral_bin-1)*cdelt/2.0;
@@ -114,7 +176,12 @@ int main(int argc, char* argv[]) {
     }
 
     // For each spectral slice...
-    vec3d err = replicate(dnan, cube.dims);
+    vec3d err;
+    if (emethod == error_method::pipeline) {
+        err = perror;
+    } else {
+        err = replicate(dnan, cube.dims);
+    }
 
     double kernel_error_renorm = 1.0;
 
@@ -129,20 +196,48 @@ int main(int argc, char* argv[]) {
         vec2d tmp = cube(l,_,_)/exposure(l,_,_);
         vec1u idg = where(is_finite(tmp));
         if (!idg.empty()) {
-            // 2) Compute pixel fluctuations of exposure-renormalized fluxes
-            // and estimate error cube by this value and the exposure
+            double img_rms = 0.0;
 
-            // Fluctuations from median absolute deviation
-            // double img_rms = 1.48*mad(tmp[idg]);
-            // -> not enough pixels in the IFU to use this one reliably, it tends
-            // to underestiamte the actual flux fluctuation in some situation
+            switch (emethod) {
+                // Use errors computed by the pipeline, nothing to do
+                case error_method::pipeline : break;
 
-            // Fluctuations from RMS of negative pixels in median subtracted map
-            tmp -= median(tmp[idg]);
-            idg = where(is_finite(tmp) && tmp < 0);
-            double img_rms = rms(tmp[idg]);
+                // 2) Compute pixel fluctuations of exposure-renormalized fluxes
+                // and estimate error cube by this value and the exposure
 
-            err(l,_,_) = (img_rms*error_scale)*exposure(l,_,_);
+                // Fluctuations from standard deviation
+                // -> will be more sensitive toward outliers and the actual source in
+                // the map, will tend to overestimate the flux fluctuations
+                case error_method::stddev :
+                    img_rms = 1.48*mad(tmp[idg]);
+                    break;
+
+                // Fluctuations from median absolute deviation
+                // -> not enough pixels in the IFU to use this one reliably, it tends
+                // to underestimate the actual flux fluctuation in some situation
+                case error_method::mad :
+                    img_rms = 1.48*mad(tmp[idg]);
+                    break;
+
+                // Fluctuations from median of negative pixels in median subtracted map
+                case error_method::madneg :
+                    tmp -= median(tmp[idg]);
+                    idg = where(is_finite(tmp) && tmp < 0);
+                    img_rms = -1.48*median(tmp[idg]);
+                    break;
+
+                // Fluctuations from RMS of negative pixels in median subtracted map
+                // -> more sensitive to outliers, but only from noise, not the sources
+                case error_method::stddevneg :
+                    tmp -= median(tmp[idg]);
+                    idg = where(is_finite(tmp) && tmp < 0);
+                    img_rms = rms(tmp[idg]);
+                    break;
+            }
+
+            if (emethod != error_method::pipeline) {
+                err(l,_,_) = (img_rms*error_scale)*exposure(l,_,_);
+            }
 
             if (spatial_smooth > 0) {
                 // 3) Apply spatial smoothing
@@ -525,9 +620,9 @@ void print_help() {
     print("Main parameter:");
     paragraph("'kmos_cube.fits' should be a cube created by the KMOS pipeline, with at "
         "least 2 extensions: the first is empty (KMOS convention), and the second "
-        "contains the flux. Even if a third extension is present and contains the "
-        "uncertainty, it is not used (the uncertainty is derived from the flux cube "
-        "itself.");
+        "contains the flux. If a third extension is present and contains the uncertainty, "
+        "it is only used if 'emethod=pipeline' (see below). Else, the uncertainty is "
+        "derived from the flux cube itself.");
     print("Available options (in order of importance):");
     bullet("expmap=...", "Must be a 2D FITS file containing the exposure map of the IFU "
         "in units of exposure time or number of exposures (if exposure time per exposure "
@@ -543,6 +638,22 @@ void print_help() {
         "recommended to use this option and flag out the regions with only a handful of "
         "exposures, where strong outliers can be found (cosmic rays, detector hot pixels, "
         "etc).");
+    bullet("emethod=...", "Must be a string. It defines the method used to estimate the "
+        "uncertainty on each pixel in the cube. Possible values are the following. "
+        "'pipeline': use the uncertainty estimated by the KMOS pipeline, which is "
+        "provided with the cube. 'stddev': compute the uncertainty of each wavelength "
+        "slice from the standard deviation of the pixels (renormalized for exposure). "
+        "'mad': same as stddev, but using the median absolute deviation. "
+        "'stddevneg': same as stddev, but only using the negative pixels in the map. "
+        "'madneg': same as stddevneg but using the median absolute deviation. Generally "
+        "speaking, the standard deviation is more sensitive to outliers than the median "
+        "absolute deviation, so it will tend to give more conservative (if not "
+        "clearly overestimated) uncertainties. It will also tend to be biased high by the "
+        "presence of genuine sources in the map. For this reason, there are alternative "
+        "version of both stddev and mad that only use the negative pixels; i.e., are free "
+        "from contamination by sources. Except for the 'pipeline' estimate, all the "
+        "methods assume that your source(s) only occupy a small fraction of the space in "
+        "the IFU.");
     bullet("spectral_bin=...", "Must be an integer number. It defines the number of "
         "spectral pixels that should be combined for the detection. The larger the value, "
         "the more pixels will be used for the detection, hence the higher the S/N. "
