@@ -20,6 +20,8 @@ int main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
         {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},
+        {"c4",      line_t("c4",      {0.15495},        {1.0})},
+        {"c3",      line_t("c3",      {0.19087},        {1.0})},
         {"mg2",     line_t("mg2",     {0.2799},         {1.0})},
         {"o2",      line_t("o2",      {0.3727},         {1.0})},
         {"ne3",     line_t("ne3",     {0.3869},         {1.0})},
