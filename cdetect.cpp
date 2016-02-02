@@ -18,8 +18,6 @@ int main(int argc, char* argv[]) {
     bool save_cubes = false;
     double snr_det = 5.0; // SNR threshold for detections
     double snr_source = 3.0; // lower SNR threshold for the extents of the source
-    bool subtract_continuum = false;
-    uint_t continuum_width = 100; // in pixels of the original scale
     bool verbose = false;
     double error_scale = 1.0;
     std::string outdir;
@@ -27,7 +25,7 @@ int main(int argc, char* argv[]) {
     std::string semethod = "stddevneg";
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
-        snr_det, snr_source, subtract_continuum, continuum_width, verbose, spectral_bin,
+        snr_det, snr_source, verbose, spectral_bin,
         error_scale, outdir, ascii, name(semethod, "emethod")));
 
     if (!outdir.empty()) {
@@ -267,52 +265,6 @@ int main(int argc, char* argv[]) {
         } else {
             cube(l,_,_) = fnan;
             err(l,_,_) = fnan;
-        }
-    }
-
-    // If asked, estimate and subtract the continuum emission
-    if (subtract_continuum) {
-        if (verbose) note("estimate continuum...");
-        // Build a rebinned cube
-        uint_t cbin = floor(continuum_width/double(spectral_bin));
-
-        if (cbin <= 1) {
-            error("continuum would be estimated over only one rebinned spectral element");
-            error("this would remove all the flux from the cube");
-            note("please use a higher value of 'continuum_width' (was ", continuum_width, ")");
-            note("or disable continuum subtraction (subtract_continuum=0)");
-            return 1;
-        }
-
-        vec3d ccube;
-        uint_t cnlam = floor(nlam/double(cbin));
-        ccube.resize(cnlam, cube.dims[1], cube.dims[2]);
-        ccube[_] = 0;
-
-        // Keep track of weights of pixels that were used in the sum
-        vec3d cnt(ccube.dims);
-
-        // Compute the weighted sum of the pixels in each bin
-        for (uint_t l : range(cnlam)) {
-            for (uint_t i : range(cbin)) {
-                vec2d w = 1.0/err(l*spectral_bin + i,_,_);
-                vec2d tmp = w*cube(l*spectral_bin + i,_,_);
-                vec1u idg = where(is_finite(tmp));
-                ccube(l,_,_)[idg] += tmp[idg];
-                cnt(l,_,_)[idg] += w[idg];
-            }
-        }
-
-        ccube /= cnt;
-
-        // Now interpolate it back to the original pixel grid and subtract it
-        if (verbose) note("subtract continuum...");
-        double ccrpix = crpix - (cbin-1)*cdelt/2.0;
-        double ccdelt = cdelt*cbin;
-        vec1d clam = crval + ccdelt*(findgen(cnlam) + (1 - ccrpix));
-        for (uint_t y : range(cube.dims[1]))
-        for (uint_t x : range(cube.dims[2])) {
-            cube(_,y,x) -= interpolate(ccube(_,y,x), clam, lam);
         }
     }
 
@@ -668,17 +620,6 @@ void print_help() {
         "It can be chosen larger than that if you expect extended emission. As for "
         "spectral binning, the optimal value of this parameter depends on your targets. "
         "Set this value to zero to disable the convolution. Default value is 1.2 pixels.");
-    bullet("subtract_continuum", "Set this flag if you want the program to estimate the "
-        "continuum emission of your target(s) from the spectrum. The continuum will be "
-        "estimated from the average flux over multiple large spectral windows; large "
-        "enough to wash out any line emission (the size of this window can be controlled "
-        "with the parameter 'continuum_width'). Default is not to subtract the continuum, "
-        "since it may be what you are after.");
-    bullet("continuum_width=...", "Must be a integer. It defines the number of spectral "
-        "elements that will be averaged to compute the continuum emission. Note that "
-        "this number refers to the spectral elements *before* spectral binning has "
-        "occured, and therefore does not depend on the chosen value of of 'spectral_bin'. "
-        "Default is 100 pixels.");
     bullet("error_scale=...", "Must be a number. It can be used to scale up or down the "
         "estimated uncertainties globally. It usually happens that uncertainties are "
         "underestimated, and the program produces many false positives. In this case "
