@@ -59,7 +59,8 @@ int main(int argc, char* argv[]) {
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tlines, "lines"), width_min, width_max,
-        verbose, same_width, save_model, fix_width, use_mpfit, ascii, outdir
+        verbose, same_width, save_model, fix_width, use_mpfit, ascii, outdir, delta_width,
+        delta_z, lambda_pad
     ));
 
     if (!outdir.empty()) {
