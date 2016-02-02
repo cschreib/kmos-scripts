@@ -462,7 +462,7 @@ int main(int argc, char* argv[]) {
     // Sort by wavelength
     vec1u ids = sort(llambda);
     flux = flux[ids]; flux_err = flux_err[ids]; width = width[ids]; width_err = width_err[ids];
-    llambda = llambda[ids];
+    llambda = llambda[ids]; tlines = tlines[ids];
 
     // Write the result
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
