@@ -20,11 +20,18 @@ void print_available_lines(const std::map<std::string,line_t>& db);
 int main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
-        {"o2",     line_t("o2",     {0.3727},         {1.0})},
-        {"o3",     line_t("o3",     {0.5007, 0.4959}, {1.0, 0.3})},
-        {"hbeta",  line_t("hbeta",  {0.4861},         {1.0})},
-        {"halpha", line_t("halpha", {0.6563},         {1.0})},
-        {"n2",     line_t("n2",     {0.6584},         {1.0})}
+        {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},
+        {"mg2",     line_t("mg2",     {0.2799},         {1.0})},
+        {"o2",      line_t("o2",      {0.3727},         {1.0})},
+        {"ne3",     line_t("ne3",     {0.3869},         {1.0})},
+        {"o3",      line_t("o3",      {0.5007, 0.4959}, {1.0, 0.3})},
+        {"hdelta",  line_t("hdelta",  {0.4103},         {1.0})},
+        {"hgamma",  line_t("hgamma",  {0.4342},         {1.0})},
+        {"hbeta",   line_t("hbeta",   {0.4861},         {1.0})},
+        {"halpha",  line_t("halpha",  {0.6563},         {1.0})},
+        {"n2",      line_t("n2",      {0.6584},         {1.0})},
+        {"s2",      line_t("s2",      {0.6718, 0.6733}, {1.0, 0.75})},
+        {"palpha",  line_t("palpha",  {1.875},          {1.0})}
     };
 
     if (argc < 2) {
