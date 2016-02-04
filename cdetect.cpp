@@ -1,13 +1,47 @@
 #include <phypp.hpp>
 
+// Structure to define a line group to be fitted simultaneously
+struct line_t {
+    line_t() = default;
+    line_t(std::string n, vec1d lam, vec1d ra) : name(n), lambda(lam), ratio(ra) {
+        ratio /= ratio[0];
+    }
+
+    std::string name; // identifier of the line
+    vec1d lambda;     // wavelengths of the lines
+    vec1d ratio;      // flux ratios of the lines relative to the first
+};
+
 // Local functions (defined at the end of the file)
 vec2u segment(vec2u map, uint_t first_id, uint_t& nsrc);
 vec2u grow_within(vec2u map, vec2b mask);
-void print_help();
+void print_help(const std::map<std::string,line_t>& db);
+void print_available_lines(const std::map<std::string,line_t>& db);
 
 int main(int argc, char* argv[]) {
+    // Build the line data base (you can add your own there!)
+    // NB: the line grouping and theoretical ratios are not used here
+    // the whole data base will be "flattended" later on. This format
+    // is just used for consistency with clinefit and slinefit.
+    std::map<std::string,line_t> linedb = {
+        {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},
+        {"c4",      line_t("c4",      {0.15495},        {1.0})},
+        {"c3",      line_t("c3",      {0.19087},        {1.0})},
+        {"mg2",     line_t("mg2",     {0.2799},         {1.0})},
+        {"o2",      line_t("o2",      {0.3727},         {1.0})},
+        {"ne3",     line_t("ne3",     {0.3869},         {1.0})},
+        {"o3",      line_t("o3",      {0.5007, 0.4959}, {1.0, 0.3})},
+        {"hdelta",  line_t("hdelta",  {0.4103},         {1.0})},
+        {"hgamma",  line_t("hgamma",  {0.4342},         {1.0})},
+        {"hbeta",   line_t("hbeta",   {0.4861},         {1.0})},
+        {"halpha",  line_t("halpha",  {0.6563},         {1.0})},
+        {"n2",      line_t("n2",      {0.6584},         {1.0})},
+        {"s2",      line_t("s2",      {0.6718, 0.6733}, {1.0, 0.75})},
+        {"palpha",  line_t("palpha",  {1.875},          {1.0})}
+    };
+
     if (argc < 2) {
-        print_help();
+        print_help(linedb);
         return 0;
     }
 
@@ -20,17 +54,28 @@ int main(int argc, char* argv[]) {
     double snr_source = 3.0; // lower SNR threshold for the extents of the source
     bool verbose = false;
     double error_scale = 1.0;
+    vec1d zhint;
+    double maxdv = 200.0;
+    double maxdist = 5;
+    double qflag2_snr_threshold = 5.0;
+    uint_t minqflag = 0;
+    bool single_source = false;
     std::string outdir;
     bool ascii = false;
     std::string semethod = "stddevneg";
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
-        snr_det, snr_source, verbose, spectral_bin,
-        error_scale, outdir, ascii, name(semethod, "emethod")));
+        snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
+        qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, name(semethod, "emethod")));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
         file::mkdir(outdir);
+    }
+
+    if (zhint.size() != 0 && zhint.size() != 2) {
+        error("'zhint' must contain two values: the minimum and maximum allowed redshift");
+        return 1;
     }
 
     // Find out which method to use to compute the uncertainties
@@ -366,7 +411,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (verbose) note("found ", nsrc_tot, " sources in the cube");
+    if (verbose) note("found ", nsrc_tot, " source", (nsrc_tot > 1 ? "s" : ""), " in the cube");
 
     fits::output_image fseg(ofilebase+"_seg.fits");
     fseg.write(seg);
@@ -393,6 +438,374 @@ int main(int argc, char* argv[]) {
         ));
     }
 
+    // If no detection, there nothing more we can do
+    if (x.empty()) return 0;
+
+    // Combine multiple wavelengths into a single source, based on distance of emission
+    // centroid
+    vec1d xg = x, yg = y, group = id, ngroup = replicate(1, x.size());
+    std::vector<vec1u> gsids;
+    for (uint_t i : range(x)) {
+        gsids.push_back(vec1u{i});
+    }
+
+    while (true) {
+        // First compute the nearest neighbors between groups, within 'maxdist'
+        vec1d dg = replicate(dinf, xg.size());
+        for (uint_t i : range(xg))
+        for (uint_t j : range(i+1, xg.size())) {
+            double d = sqr(xg[j]-xg[i]) + sqr(yg[j]-yg[i]);
+            if (single_source || (d < sqr(maxdist) && d < dg[i] && d < dg[j])) {
+                group[j] = group[i];
+                dg[j] = dg[i] = d;
+            }
+        }
+
+        vec1u uid = uniq(group, sort(group));
+
+        // If no group was merged, then we have converged
+        if (uid.size() == group.size()) break;
+
+        // Some groups were merged, compute their barycenter, group size and member ids
+        uint_t nn = uid.size();
+        vec1d nxg(nn), nyg(nn), ng = uindgen(nn), nng(nn);
+        std::vector<vec1u> ngi(nn);
+        for (uint_t iu : range(nn)) {
+            vec1u idd = where(group == group[uid[iu]]);
+            nng[iu] = total(ngroup[idd]);
+            nxg[iu] = total(ngroup[idd]*xg[idd])/nng[iu];
+            nyg[iu] = total(ngroup[idd]*yg[idd])/nng[iu];
+            for (uint_t i : range(idd)) {
+                append<0>(ngi[iu], gsids[idd[i]]);
+            }
+        }
+
+        // Swap with previous group variables and try again
+        std::swap(nxg, xg); std::swap(nyg, yg);
+        std::swap(ng, group); std::swap(nng, ngroup);
+        std::swap(ngi, gsids);
+    }
+
+    if (verbose) {
+        note("merged ", x.size(), " individual spectral detections into ", xg.size(),
+            " independent spatial sources");
+    }
+
+    // Identify possible lines & redshift
+    vec1u gqf1(xg.size());
+    vec1u gqf2(xg.size());
+    vec1d gfm(xg.size());
+    vec1d gdv(xg.size());
+    vec1d gz = replicate(dnan, xg.size());
+    vec1d gze = replicate(dnan, xg.size());
+    vec1s gl(xg.size());
+
+    // Flatten the line database
+    vec1d ldb;
+    vec1s ndb;
+    for (auto& l : linedb)
+    for (uint_t ill : range(l.second.lambda)) {
+        ldb.push_back(l.second.lambda[ill]);
+        if (l.second.lambda.size() == 1) {
+            ndb.push_back(l.first);
+        } else {
+            ndb.push_back(l.first+"-"+strn(ill+1));
+        }
+    }
+
+    // Sort it by wavelength
+    {
+        vec1u ids = sort(ldb);
+        ldb = ldb[ids]; ndb = ndb[ids];
+    }
+
+    // Now explore each group
+    for (uint_t ig : range(xg.size())) {
+        vec1d lg(gsids[ig].size());
+        vec1d snrg(gsids[ig].size());
+
+        for (uint_t j : range(gsids[ig])) {
+            lg[j] = lambda[gsids[ig][j]];
+            snrg[j] = (flux/flux_err)[gsids[ig][j]];
+        }
+
+        vec1d zs;
+        vec1u zfrom;
+        vec1u zline;
+        vec1d fmatch;
+        vec1d dvmax;
+        vec1d dzs;
+        vec1u qflag1;
+        vec1u qflag2;
+        vec1s lids;
+
+        if (verbose) {
+            note("group ", strn(ig+1), ": ", lg.size(), " detection", (lg.size() > 1 ? "s" : ""));
+        }
+
+        // For each line in the group, first blindly try the line alone
+        // against the line database to list all the possible redshifts
+        std::vector<vec1u> found_ill;
+        std::vector<vec1u> found_izl;
+        vec1u              found_il;
+        for (uint_t il : range(lg)) {
+            found_ill.push_back(vec1u{});
+            found_izl.push_back(vec1u{});
+
+            for (uint_t ill : range(ldb)) {
+                double ztry = lg[il]/ldb[ill] - 1.0;
+
+                // Discard negative redshits...
+                if (ztry < 0) continue;
+
+                // If the user provided a redshift hint, we can only list
+                // the possibilities within the available range
+                if (!zhint.empty() && (ztry < zhint[0] || ztry > zhint[1])) continue;
+
+                zs.push_back(ztry);
+                zfrom.push_back(il);
+                zline.push_back(ill);
+                fmatch.push_back(1.0/lg.size());
+                dvmax.push_back(0.0);
+                dzs.push_back(0.5*cdelt/lg[il]);
+                lids.push_back(ndb[ill]);
+
+                uint_t tqflag2 = snrg[il] > qflag2_snr_threshold ? 1 : 0;
+                qflag1.push_back(1);
+                qflag2.push_back(tqflag2);
+
+                found_ill.back().push_back(ill);
+                found_izl.back().push_back(zs.size()-1);
+            }
+
+            if (found_ill.back().empty()) {
+                found_ill.pop_back();
+                found_izl.pop_back();
+            } else {
+                found_il.push_back(il);
+            }
+        }
+
+        // Now, if we have more than one line, try to see if we can
+        // strengthen the redshifts by including additional detected lines
+        // at the same redshift, within the uncertainties
+        if (lg.size() > 1) {
+            vec1d ozs = zs, odzs = dzs;
+            for (uint_t iz : range(zs)) {
+                // Pick only the other lines that correspond to the same redshift
+                vec1d dz = ozs - zs[iz];
+                vec1u idz = where(zfrom >= zfrom[iz] &&
+                    abs(dz) <= sqrt(sqr(maxdv/3e5) + sqr(odzs) + sqr(dzs[iz]))
+                );
+
+                // Make sure we only combine lines that come from unique
+                // spectral features. Indeed, one spectral feature may be
+                // associated to several lines, within the allowed uncertainty,
+                // but we want it to only count once regardless.
+                vec1u idus = uniq(zfrom, idz[sort(zfrom[idz])]);
+
+                if (idus.size() > 2) {
+                    vec1d tz = zs[idus];
+                    vec1d tze = dzs[idus];
+                    vec1d tw = snrg[zfrom[idus]];
+
+                    // Compute average redshift of the group, only counting
+                    // each spectral feature once
+                    double totw = total(tw);
+                    zs.push_back(total(tz*tw)/totw);
+                    dvmax.push_back((max(dz[idz]) - min(dz[idz]))*3e5);
+                    fmatch.push_back(idus.size()/double(lg.size()));
+                    dzs.push_back(sqrt(total(sqr(tze*tw)))/totw);
+                    qflag2.push_back(total(qflag2[idus]));
+
+                    // Build line list
+                    vec1u ids = idus[sort(snrg[zfrom[idus]])];
+                    vec1s tmpl(idus.size());
+                    for (uint_t i : range(ids)) {
+                        vec1u idl = idz[where(zfrom[idz] == zfrom[ids[i]])];
+                        tmpl[i] = strn(zfrom[ids[i]])+":"+collapse(lids[idl], "/");
+                    }
+
+                    lids.push_back(collapse(tmpl,","));
+
+                    // Now compute the number of independent lines for the quality flag.
+                    // To do so, we only count the lines that are unambiguously
+                    // observed, i.e., not counting those that are systematically
+                    // blended with the same lines. Note that the same line can be
+                    // observed in multiple spectral elements if the 'maxdv' is large
+                    // enough, so we have to be careful.
+
+                    // First count the number of unique lines
+                    vec1u idul = uniq(zline, idz[sort(zline[idz])]);
+
+                    vec1u blend_group(idul.size());
+                    uint_t groupid = 0;
+                    uint_t nline = 0;
+                    for (uint_t iu1 : range(idul)) {
+                        // For each line not already grouped
+                        if (blend_group[iu1] != 0) continue;
+                        // ... pick up all its observed spectral elements
+                        vec1u zfrom1 = zfrom[idz[where(zline[idz] == zline[idul[iu1]])]];
+
+                        // Give it a group
+                        ++groupid;
+                        blend_group[iu1] = groupid;
+                        // fully_blended_group.push_back(false);
+                        bool fully_blended_group = false;
+
+                        for (uint_t iu2 : range(idul)) {
+                            // For each other line
+                            if (iu2 == iu1) continue;
+                            // ... pick up all its observed spectral elements
+                            vec1u zfrom2 = zfrom[idz[where(zline[idz] == zline[idul[iu2]])]];
+
+                            // See if the two lines overlap
+                            vec1u id1, id2;
+                            match(zfrom1, zfrom2, id1, id2);
+
+                            // If no overlap, go to the next line
+                            if (id1.empty()) continue;
+
+                            // If the first line is fully included inside the second
+                            if (id1.size() == zfrom1.size()) {
+                                if (id2.size() == zfrom2.size()) {
+                                    // If the second is also included in the first, these
+                                    // two lines are fully blended so group them together
+                                    blend_group[iu2] = blend_group[iu1];
+                                } else {
+                                    // Else, forget about this line and its group
+                                    fully_blended_group = true;
+                                }
+                            }
+                        }
+
+                        if (!fully_blended_group) ++nline;
+                    }
+
+                    qflag1.push_back(nline);
+                }
+            }
+        }
+
+        lids[_-(zfrom.size()-1)] = strna(zfrom)+":"+lids[_-(zfrom.size()-1)];
+
+        // Sort all the solutions by decreasing quality flag and increasing dvmax
+        vec1u ids = uindgen(zs.size());
+        inplace_sort(ids, [&](uint_t i1, uint_t i2) {
+            if (qflag1[i1] > qflag1[i2]) return true;
+            if (qflag1[i1] < qflag1[i2]) return false;
+            if (qflag2[i1] > qflag2[i2]) return true;
+            if (qflag2[i1] < qflag2[i2]) return false;
+            if (fmatch[i1] > fmatch[i2]) return true;
+            if (fmatch[i1] < fmatch[i2]) return false;
+            return dvmax[i1] < dvmax[i2];
+        });
+
+        // Apply qflag cut
+        ids = ids[where(qflag1[ids] >= minqflag)];
+
+        zs = zs[ids]; dzs = dzs[ids]; fmatch = fmatch[ids]; dvmax = dvmax[ids];
+        qflag1 = qflag1[ids]; qflag2 = qflag2[ids]; lids = lids[ids];
+
+        if (zs.empty()) {
+            if (verbose) {
+                note("group ", ig+1, ": no reliable redshift");
+            }
+        } else {
+            gqf1[ig] = qflag1[0];
+            gqf2[ig] = qflag2[0];
+            gfm[ig] = fmatch[0];
+            gdv[ig] = dvmax[0];
+            gz[ig] = zs[0];
+            gze[ig] = dzs[0];
+            gl[ig] = lids[0];
+
+            if (verbose) {
+                note("group ", ig+1, ": most likely redshift is ", zs[0],
+                    " +/- ", dzs[0], " (nline: ", qflag1[0], ", ngline: ", qflag2[0], ", "
+                    "match: ", round(100*fmatch[0]), "%, maxdv: ", round(dvmax[0]), " km/s)");
+                note("from lines: ", lids[0]);
+            }
+        }
+
+        // Save group
+        if (!zs.empty()) {
+            if (ascii) {
+                vec1s hdr = {"qflag1", "qflag2", "fmatch", "maxdv", "z", "zerr", "lines"};
+
+                // Manual handling of column widths
+                vec1s sq1 = strna(qflag1);
+                vec1s sq2 = strna(qflag2);
+                vec1s sfm = strna(round(100.0*fmatch)/100.0);
+                vec1s sdv = strna(round(dvmax));
+                vec1s sz = strna(zs);
+                vec1s sdz = strna(dzs);
+                vec1s sl = lids;
+
+                sq1 = align_right(sq1, max(length(sq1))+8);
+                hdr[0] = align_right(hdr[0], sq1[0].size());
+                sq2 = align_right(sq2, max(length(sq2))+8);
+                hdr[1] = align_right(hdr[1], sq2[0].size());
+                sfm = align_right(sfm, max(length(sfm))+8);
+                hdr[2] = align_right(hdr[2], sfm[0].size());
+                sdv = align_right(sdv, max(length(sdv))+8);
+                hdr[3] = align_right(hdr[3], sdv[0].size());
+                sz = align_right(sz, max(length(sz))+4);
+                hdr[4] = align_right(hdr[4], sz[0].size());
+                sdz = align_right(sdz, max(length(sdz))+4);
+                hdr[5] = align_right(hdr[5], sdz[0].size());
+                sl  = "  "+align_left(sl, max(length(sl)));
+                hdr[6] = "  "+align_left(hdr[6], sl[0].size()-2);
+
+                file::write_table_hdr(ofilebase+"_gcat_"+strn(ig+1)+".cat", 0,
+                    hdr, sq1, sq2, sfm, sdv, sz, sdz, sl
+                );
+            } else {
+                fits::write_table(ofilebase+"_gcat_"+strn(ig+1)+".fits",
+                    "qflag1", qflag1, "qflag2", qflag2, "fmatch", fmatch,
+                    "maxdv", dvmax, "z", zs, "zerr", dzs, "lines", lids
+                );
+            }
+        }
+    }
+
+    if (ascii) {
+        vec1s hdr = {"qflag1", "qflag2", "fmatch", "maxdv", "z", "zerr", "lines"};
+
+        // Manual handling of column widths
+        vec1s sq1 = strna(gqf1);
+        vec1s sq2 = strna(gqf2);
+        vec1s sfm = strna(round(100.0*gfm)/100.0);
+        vec1s sdv = strna(round(gdv));
+        vec1s sz = strna(gz);
+        vec1s sdz = strna(gze);
+        vec1s sl = gl;
+
+        sq1 = align_right(sq1, max(length(sq1))+8);
+        hdr[0] = align_right(hdr[0], sq1[0].size());
+        sq2 = align_right(sq2, max(length(sq2))+8);
+        hdr[1] = align_right(hdr[1], sq2[0].size());
+        sfm = align_right(sfm, max(length(sfm))+8);
+        hdr[2] = align_right(hdr[2], sfm[0].size());
+        sdv = align_right(sdv, max(length(sdv))+8);
+        hdr[3] = align_right(hdr[3], sdv[0].size());
+        sz = align_right(sz, max(length(sz))+4);
+        hdr[4] = align_right(hdr[4], sz[0].size());
+        sdz = align_right(sdz, max(length(sdz))+4);
+        hdr[5] = align_right(hdr[5], sdz[0].size());
+        sl  = "  "+align_left(sl, max(length(sl)));
+        hdr[6] = "  "+align_left(hdr[6], sl[0].size()-2);
+
+        file::write_table_hdr(ofilebase+"_gcat.cat", 0,
+            hdr, sq1, sq2, sfm, sdv, sz, sdz, sl
+        );
+    } else {
+        fits::write_table(ofilebase+"_gcat.fits",
+            "qflag1", gqf1, "qflag2", gqf2, "fmatch", gfm,
+            "maxdv", gdv, "z", gz, "zerr", gze, "lines", gl
+        );
+    }
+
     return 0;
 }
 
@@ -417,9 +830,11 @@ vec2u segment(vec2u map, uint_t first_id, uint_t& nsrc) {
         // figure out its extents
         oy.clear(); ox.clear();
 
-        auto process_point = [&ox,&oy,&map,&smap](uint_t ty, uint_t tx, uint_t tid) {
+        uint_t added = 0;
+        auto process_point = [&ox,&oy,&map,&smap,id,&added](uint_t ty, uint_t tx) {
+            ++added;
             map.safe(ty,tx) = 0;
-            smap.safe(ty,tx) = tid;
+            smap.safe(ty,tx) = id;
 
             auto check_add = [&ox,&oy,&map](uint_t tty, uint_t ttx) {
                 if (map.safe(tty,ttx) != 0) {
@@ -434,12 +849,12 @@ vec2u segment(vec2u map, uint_t first_id, uint_t& nsrc) {
             if (tx != map.dims[1]-1) check_add(ty,tx+1);
         };
 
-        process_point(y, x, id);
+        process_point(y, x);
 
         while (!ox.empty()) {
             uint_t ty = oy.back(); oy.pop_back();
             uint_t tx = ox.back(); ox.pop_back();
-            process_point(ty, tx, id);
+            process_point(ty, tx);
         }
 
         ++id;
@@ -563,19 +978,47 @@ vec2u grow_within(vec2u map, vec2b mask) {
     return map;
 }
 
-void print_help() {
+void print_help(const std::map<std::string,line_t>& db) {
     using namespace format;
 
     print("cdetect v1.0");
     print("usage: cdetect <kmos_cube.fits> [options]");
     print("");
-    print("Main parameter:");
+    print("Main parameter and program workflow:");
     paragraph("'kmos_cube.fits' should be a cube created by the KMOS pipeline, with at "
         "least 2 extensions: the first is empty (KMOS convention), and the second "
         "contains the flux. If a third extension is present and contains the uncertainty, "
         "it is only used if 'emethod=pipeline' (see below). Else, the uncertainty is "
-        "derived from the flux cube itself.");
-    print("Available options (in order of importance):");
+        "derived from the flux cube itself. Then, the program filters the cube, binning "
+        "spectrally and smoothing spatially if requested, to detect high S/N features in "
+        "the IFU. It generates a segmentation cube containing the position and extents of "
+        "the detections (*_seg.fits), and a catalog listing these detections (*_cat.fits). "
+        "In a second pass, it combines these independent spectral detections into "
+        "spatially coherent sources (based on their distance on the sky) and tries to "
+        "match the detected spectral features with known emission lines to determine the "
+        "redshift of each source. The most likely redshift of each source is saved in a "
+        "catalog (*_gcat.fits), and all the possible redshifts of one particular source "
+        "'X' is saved in a dedicated catalog (*_gcat_X.fits). To each redshift solution "
+        "is associated a number of quality flags and values. 'qflag1' is the number of "
+        "unique emission lines that are used to determine the redshift (blended lines, "
+        "such as Halpha and [NII], count as one). Solutions with 'qflag1=1' are not "
+        "robust unless you have strong external constraints from the broad band "
+        "photometry. 'qflag2' is the number of matched spectral feature with S/N greater "
+        "than 5. NB: one line can be matched to multiple spectral features if the line is "
+        "spectrally extended. 'fmatch' is the fraction of the detected spectral features "
+        "that were matched to known emission lines. Finally, 'maxdv' is the largest "
+        "velocity offset between two matched lines in km/s. An uncertainty on the derived "
+        "redshift is computed based solely on 1) the spectral resolution of the binned "
+        "spectrum and 2) the number of matched lines.");
+    print("Available lines for matching:");
+    print_available_lines(db);
+    paragraph("\nNote: you can add your own lines either by modifying the source code of the "
+        "program, or directly into the command line arguments. In the 'lines=[...]' "
+        "parameter, you can indeed create a new line with the synthax 'name:lambda'. In this "
+        "case, 'name' can be whatever you want (should not contain spaces), 'lambda' must be "
+        "the rest-frame wavelength of the line in microns. For example, to add Lyman alpha: "
+        "lines=[lyalpha:0.12157].");
+    print("Available options for source detection (in order of importance):");
     bullet("expmap=...", "Must be a 2D FITS file containing the exposure map of the IFU "
         "in units of exposure time or number of exposures (if exposure time per exposure "
         "is constant). This map will be used to estimate more finely the uncertainties. "
@@ -630,11 +1073,51 @@ void print_help() {
         "to define the spatial extents of a detection. Default is 3.");
     bullet("save_cubes", "Set this flag to write to disk the filtered flux and uncertainty "
         "cubes that are used to perform the detection. They will be saved in *_filt.fits.");
-    bullet("outdir", "Name of the directory into which the output files should be created. "
+    print("\nAvailable options for redshift identification (in order of importance):");
+    bullet("maxdist=...", "Must be a number. It defines the maximum distance on the sky (in "
+        "pixels) between two spectral sources to be considered as part of the same "
+        "object. Default is 5 pixels, which is fairly generous. You may want to decrease "
+        "this value if you know that your sources are very compact and that there should "
+        "not be spatial offsets between the sources and their line emission (which could "
+        "happen, e.g., if there is a cloud of outflowing gas). Using a too large value "
+        "will lead to more spurious associations of noise fluctuations.");
+    bullet("single_source", "Set this flag if you want all the spectral detections to be "
+        "associated to a unique source (this is equivalent to choosing 'maxdist' to a "
+        "value larger than the size of the IFU).");
+    bullet("zhint=[...]", "Must be a vector of two numbers. It defines the allowed redshift "
+        "range when searching for line emission. The first number is the lowest redshift "
+        "and the second number is the highest redshift. Example: 'zhint=[1,2]' will only "
+        "search for lines between z=1 and z=2. Default is to consider all possible "
+        "positive redshifts. This can be used to narrow down the possibilities, for "
+        "example if you already have strong constraints from the broad band photometry or "
+        "low resolution spectroscopy.");
+    bullet("maxdv=...", "Must be a number. It defines the maximum allowed velocity offset "
+        "between two lines that belong to the same source. Default is 200 km/s. This is, "
+        "if you wish, the tolerence threshold on the line identification. Increasing this "
+        "number will allow new redshift solutions where lines can be strongly offset from "
+        "one another, likely because of outflows or multiple components with different "
+        "velocities. It will also increase the chance of spurious detection.");
+    bullet("minqflag=...", "Must be an integer. It defines the minimum allowed value of "
+        "'qflag1'; redshift solutions with a lower quality flag will be discarded as "
+        "unreliable. Default is to keep all solutions.");
+    print("\nAvailable generic options:");
+    bullet("outdir=...", "Name of the directory into which the output files should be created. "
         "Default is the current directory.");
-    bullet("ascii", "Set this flag to save the output catalog in ASCII format rather than "
-        "FITS.");
+    bullet("ascii", "Set this flag to save the output catalogs in ASCII format rather "
+        "than FITS.");
     bullet("verbose", "Set this flag to print the progress of the detection process in "
         "the terminal. Can be useful if something goes wrong, or just to understand what "
         "is going on.");
+}
+
+void print_available_lines(const std::map<std::string,line_t>& db) {
+    for (auto& l : db) {
+        if (l.second.lambda.size() == 1) {
+            print("  - ", l.first, ", lambda=", l.second.lambda[0]);
+        } else {
+            for (uint_t il : range(l.second.lambda)) {
+                print("  - ", l.first+"-"+strn(il+1), ", lambda=", l.second.lambda[il]);
+            }
+        }
+    }
 }
