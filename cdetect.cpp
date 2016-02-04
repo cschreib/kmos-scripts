@@ -254,7 +254,7 @@ int main(int argc, char* argv[]) {
                 // -> will be more sensitive toward outliers and the actual source in
                 // the map, will tend to overestimate the flux fluctuations
                 case error_method::stddev :
-                    img_rms = 1.48*mad(tmp[idg]);
+                    img_rms = stddev(tmp[idg]);
                     break;
 
                 // Fluctuations from median absolute deviation
