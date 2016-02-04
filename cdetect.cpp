@@ -349,7 +349,7 @@ int main(int argc, char* argv[]) {
 
             // For each source, save its identifiers and some information
             for (uint_t i : range(nsrc)) {
-                vec1u idd = where(det == i+1);
+                vec1u idd = where(det == first_id + i);
 
                 id.push_back(first_id + i);
                 npix.push_back(idd.size());
