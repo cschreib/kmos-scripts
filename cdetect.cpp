@@ -64,12 +64,13 @@ int main(int argc, char* argv[]) {
     bool single_source = false;
     std::string outdir;
     bool ascii = false;
+    vec1s lines;
     std::string semethod = "stddevneg";
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
         qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, disable_zsearch,
-        lambda_pad, name(semethod, "emethod")));
+        lambda_pad, lines, name(semethod, "emethod")));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -79,6 +80,27 @@ int main(int argc, char* argv[]) {
     if (zhint.size() != 0 && zhint.size() != 2) {
         error("'zhint' must contain two values: the minimum and maximum allowed redshift");
         return 1;
+    }
+
+    if (!lines.empty()) {
+        bool bad = false;
+        std::map<std::string, line_t> tdb;
+        for (auto& l : lines) {
+            auto iter = linedb.find(l);
+            if (iter == linedb.end()) {
+                error("unknown line '", l, "'");
+                bad = true;
+            } else {
+                tdb.insert(*iter);
+            }
+        }
+
+        if (bad) {
+            print_available_lines(linedb);
+            return 1;
+        }
+
+        std::swap(linedb, tdb);
     }
 
     // Find out which method to use to compute the uncertainties
