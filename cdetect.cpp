@@ -689,7 +689,9 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        lids[_-(zfrom.size()-1)] = strna(zfrom)+":"+lids[_-(zfrom.size()-1)];
+        if (!zs.empty()) {
+            lids[_-(zfrom.size()-1)] = strna(zfrom)+":"+lids[_-(zfrom.size()-1)];
+        }
 
         // Sort all the solutions by decreasing quality flag and increasing dvmax
         vec1u ids = uindgen(zs.size());
