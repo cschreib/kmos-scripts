@@ -54,6 +54,7 @@ int main(int argc, char* argv[]) {
     double snr_source = 3.0; // lower SNR threshold for the extents of the source
     bool verbose = false;
     double error_scale = 1.0;
+    uint_t lambda_pad = 5;
     vec1d zhint;
     double maxdv = 200.0;
     double maxdist = 5;
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]) {
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
         qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, disable_zsearch,
-        name(semethod, "emethod")));
+        lambda_pad, name(semethod, "emethod")));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -143,6 +144,48 @@ int main(int argc, char* argv[]) {
 
     vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
     double dl = cdelt*1e4;
+
+    // Flag out the pixels at the border of the spectrum
+    if (lambda_pad != 0) {
+        if (2*lambda_pad >= cube.dims[0]-1) {
+            error("the input cube is smaller than the requested lambda pad ("
+                "the cube contains ", cube.dims[0], " elements)");
+            return 1;
+        }
+
+        // Build a simple 1D spectrum to identify valid regions
+        vec1d tmp_spec = partial_median(1, partial_median(2, cube));
+
+        // Locate first and last valid spectral elements
+        uint_t lambda_min = 0, lambda_max = cube.dims[0]-1;
+        for (uint_t i : range(tmp_spec)) {
+            if (is_finite(tmp_spec[i])) {
+                lambda_min = i;
+                break;
+            }
+        }
+        for (uint_t i : range(tmp_spec)) {
+            if (is_finite(tmp_spec[cube.dims[0]-1-i])) {
+                lambda_max = cube.dims[0]-1-i;
+                break;
+            }
+        }
+
+        // Apply padding
+        lambda_min = (lambda_min+lambda_pad > cube.dims[0]-1 ?
+            cube.dims[0]-1 : lambda_min + lambda_pad);
+        lambda_max = (lambda_max < lambda_pad ?
+            0 : lambda_max - lambda_pad);
+
+        if (lambda_max <= lambda_min) {
+            error("the cube does not contain any valid spectral slice");
+            return 1;
+        }
+
+        // Flag bad spectral elements
+        cube(_-lambda_min,_,_) = dnan;
+        cube(lambda_max-_,_,_) = dnan;
+    }
 
     // Bin spectral pixels and start building exposure map
     vec3d exposure;
@@ -1097,6 +1140,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "for a detection. Default is 5.");
     bullet("snr_source=...", "Must be a number. It defines the minimum S/N ratio to consider "
         "to define the spatial extents of a detection. Default is 3.");
+    bullet("lambda_pad", "Must be an integer. It defines the number of wavelength element "
+        "that are ignored both at the beginning and end of the spectrum. Default is 5 "
+        "elements. This is used to flag out invalid and poorly covered spectral regions "
+        "which often trigger spurious detections.");
     bullet("save_cubes", "Set this flag to write to disk the filtered flux and uncertainty "
         "cubes that are used to perform the detection. They will be saved in *_filt.fits.");
     print("\nAvailable options for redshift identification (in order of importance):");
