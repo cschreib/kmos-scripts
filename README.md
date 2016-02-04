@@ -4,22 +4,22 @@
 
 <!-- MarkdownTOC -->
 
-- [Introduction](#introduction)
-- [A. Prepare your computer](#a-prepare-your-computer)
-- [B. Prepare the data](#b-prepare-the-data)
-- [C. Reduce the calibration data](#c-reduce-the-calibration-data)
-- [D. Reduce the standard stars for absolute flux calibration](#d-reduce-the-standard-stars-for-absolute-flux-calibration)
-- [E. A short tutorial to inspect a cube with QFitsView](#e-a-short-tutorial-to-inspect-a-cube-with-qfitsview)
-- [F. Reduce individual OBs](#f-reduce-individual-obs)
-- [G. Check for the detection of helper targets](#g-check-for-the-detection-of-helper-targets)
-- [H. Combine all OBs into master cubes](#h-combine-all-obs-into-master-cubes)
-- [I. Improve OH line subtraction](#i-improve-oh-line-subtraction)
-- [J. Fix astrometry of individual exposures](#j-fix-astrometry-of-individual-exposures)
-- [Appendix A. Analyzing cubes: continuum subtraction](#appendix-a-analyzing-cubes-continuum-subtraction)
-- [Appendix B. Analyzing cubes: blind line detection](#appendix-b-analyzing-cubes-blind-line-detection)
-- [Appendix C. Analyzing cubes: extracting spectra](#appendix-c-analyzing-cubes-extracting-spectra)
-- [Appendix D. Analyzing cubes: fitting lines in spectra](#appendix-d-analyzing-cubes-fitting-lines-in-spectra)
-- [Appendix E. Analyzing cubes: fitting lines in cubes](#appendix-e-analyzing-cubes-fitting-lines-in-cubes)
+- Introduction
+- A. Prepare your computer
+- B. Prepare the data
+- C. Reduce the calibration data
+- D. Reduce the standard stars for absolute flux calibration
+- E. A short tutorial to inspect a cube with QFitsView
+- F. Reduce individual OBs
+- G. Check for the detection of helper targets
+- H. Combine all OBs into master cubes
+- I. Improve OH line subtraction
+- J. Fix astrometry of individual exposures
+- Appendix A. Analyzing cubes: continuum subtraction
+- Appendix B. Analyzing cubes: blind line detection
+- Appendix C. Analyzing cubes: extracting spectra
+- Appendix D. Analyzing cubes: fitting lines in spectra
+- Appendix E. Analyzing cubes: fitting lines in cubes
 
 <!-- /MarkdownTOC -->
 
@@ -560,7 +560,7 @@ In broadband imaging, once the images are reduced, the usual first step is to ru
 
 Alternatively, you can look for detections yourself, by scanning the cube by eye. This is tedious: there are about two thousands of spectral elements, and you should inspect each of them one by one... If you know where your source is located in the IFU (for example if you see it in the collapsed continuum images), then you can try to extract a spectrum there (see, e.g., next section) and look for lines in the extracted spectrum. This is fine. However most of the time when dealing with distant galaxies, they are not detected in the continuum. Worse, even though you know their coordinates, you can never be sure of the astrometry of your IFU, and you may look at the wrong place... Lastly, you cannot rule out that the emission line geometry of your object may differ substantially from the continuum geometry, such that even with a perfect astrometry there could be offsets between the continuum and the line emission.
 
-For these reasons I have developed a small tool to blindly search for detections in KMOS cubes. It performs both spectral and spatial smoothing to enhance the S/N, and computes the uncertainties from the data themselves (rather than relying on the uncertainties provided by the pipeline, which can prove to be underestimated; still you can choose to use it if you wish). This tool is called `cdetect`.
+For these reasons I have developed a small tool to blindly search for detections in KMOS cubes. It performs both spectral and spatial smoothing to enhance the S/N. In a second step, it tries to combine these detections into "sources", and then performs a redshift search by comparing the detected spectral features of a given source against a database of known emission lines. This tool is called `cdetect`.
 
 Here is how you would use it.
 
@@ -578,7 +578,7 @@ cphy++ optimize cdetect.cpp
     save_cubes verbose
 ```
 
-The `save_cubes` option will ask the program to save intermediate files so you can take a look. This is, in particular, the filtered flux cube where you can check by eye the robustness of your detections. Lastly, the `verbose` option prints some information in the terminal while the program is running; it tells you what it is doing.
+The `save_cubes` option will ask the program to save intermediate files so you can take a look. This is, in particular, the filtered flux cube where you can check by eye the robustness of your detections. Lastly, the `verbose` option prints some information in the terminal while the program is running; it tells you what it is doing and will also list the determined redshifts for each identified source in the cube.
 
 4) Depending on your observations, you may have multiple or zero detections. If you have no detection, that may be because the default behavior of the program is to search for detections in each individual spectral slice. That is fine if your lines have high S/N, or are very narrow. But if the lines are spectrally extended, you will want to apply some binning. To do so, you can tune the `spectral_bin` parameter. The default value is 1 (no binning), so you can first try with 2, which will merge every two spectral elements into one, increasing the S/N for extended lines by about a factor 1.4. If that is not enough, try higher values. There is no need to go too high, since at some point you just dilute your signal. The optimal value depends on the expected width of your emission lines. At R=3800 (H+K grating), no binning is the optimal choice for velocity dispersions close to and below 60 km/s, while at R=7100 (K grating) this value decreases to 32 km/s. Generally speaking, a binning of `N` is optimal for velocity dispersions around `N*0.75*c/R`.
 
@@ -591,7 +591,7 @@ Here is an example of a tweak of the command to increase the S/N (remember: what
     save_cubes verbose spectral_bin=2 spatial_smooth=1.6
 ```
 
-If you have no detections there, your last resort is to change the way the uncertainties are computed. The default method should be relatively robust, but it might be too conservative. Try changing the value of `emethod=...`. If this also doesn't give you anything, you can give up, or if you feel like it you can also lower your tolerance threshold for a detection, which is set at 5 sigma by default. This is set by the `snr_det` parameter. Who knows, it may be that the uncertainty has been overestimated, you can still try to take a look at these 4 sigma spots... Alternatively, you may have too many detections. Including many false positives if the uncertainty was underestimated. To solve this, you can choose instead to increase the value of `snr_det`.
+If you have no detections there, your last resort is to change the way the uncertainties are computed. The default method should be relatively robust, but it might be too conservative. Try changing the value of `emethod=...`. If this also doesn't give you anything, you can give up, or if you feel like it you can also lower your tolerance threshold for a detection, which is set at 5 sigma by default. This is set by the `snr_det` parameter. Who knows, it may be that the uncertainty has been overestimated, you can still try to take a look at these 4 sigma spots... Also, if you have multiple 3 to 4 sigma detections that all match known emission lines, this would still be considered a likely detection. Alternatively, you may have too many detections, including many false positives if the uncertainty was underestimated. To solve this, you can choose instead to increase the value of `snr_det`.
 
 5) If you have one or more detections, the program will list them in a catalog with their ID, spatial and spectral position. It will also give you an estimate of the flux, as well as a rough uncertainty. The flux is the sum of all pixels in the source's segmentation area after filtering, and should be a good first guess at most. The uncertainty is also a rough estimate. Both of these should not be used for science analysis, just as indications. For robust flux measurement you should extract a spectrum (see Appendix C) and fit the line profiles (see Appendix D).
 
@@ -599,7 +599,13 @@ The output catalog is in FITS format by default, you can open it with IDL and `m
 
 6) The program also produces a "segmentation cube" where the spatial extents of all sources is stored in an integer cube. There, each pixel value tells you to which source it belongs (zero meaning no detection). You can use that to evaluate the reliability of a detection (what does it look like; is it a concentrated blob or a vague irregular feature that may be caused by a data reduction problem?).
 
-7) If you want extra help, just call the program without argument. This will display a description of all the available command line parameters and the behavior of the program.
+7) This was for the spectral feature detection. The other job of the program is to merge these detections and figure out if there is a particular set of emission lines that would match this, at a specific redshift. For each identified source in the cube (i.e., matching spatially all the spectral features into individual objects), the program will output a catalog listing all the possible redshift solutions, ordered by decreasing robustness. By default the program is very inclusive, and will consider any possibility, including detections of galaxies at z=20 from a single emission line. However the program also associates a number of quality flags to each redshift solution, and will correctly classify as more robust a redshift solution matching multiple emission lines (if you are lucky enough to have some). When these quality flags are low, some solutions are still obviously more likely to be real than others. It is up to you to check that, in the end, it does make sense.
+
+8) Depending on your data, the list of solutions can be long. You can narrow it down using a couple of options. The first thing to do is to reduce the redshift range in which lines will be considered. This is justified if you know from the broadband photometry or continuum spectroscopy that the galaxy must be at z=2.5 +/- 0.2 because you detected the Balmer break, or simply if you trust the P(z) distribution given by your favorite photometric redshift code. You can enforce this constraint using the 'zhint' parameter, such that 'zhint=[2.2,2.6]' will only allow redshift solutions in this range.
+
+Another possibility, if you have many spectral detections, is to discard poor quality solutions where only one spectral feature is matched to an emission line. You can do so using the 'minqflag' parameter, which will filter the solution list by removing those which have a value of 'qflag1' (i.e., the number of detected and non-blended lines) larger than the value you choose. You would typically set 'minqflag=2' to remove single line identifications and only list the solutions where more than two lines are matched.
+
+10) If you want extra help, just call the program without argument. This will display a description of all the available command line parameters and the behavior of the program.
 ```bash
 ./cdetect
 ```
