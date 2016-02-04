@@ -228,9 +228,11 @@ int main(int argc, char* argv[]) {
         err = replicate(dnan, cube.dims);
     }
 
-    double kernel_error_renorm = 1.0;
-
     if (verbose) note("filtering wavelength slices...");
+
+    vec3d cube_ns(cube.dims);
+    vec3d err_ns(cube.dims);
+
     for (uint_t l : range(nlam)) {
         // 1) Flag baddly covered areas with exposure map (optional)
         if (!badexp.empty()) {
@@ -286,6 +288,9 @@ int main(int argc, char* argv[]) {
                 err(l,_,_) *= error_scale;
             }
 
+            cube_ns(l,_,_) = cube(l,_,_);
+            err_ns(l,_,_) = err(l,_,_);
+
             if (spatial_smooth > 0) {
                 // 3) Apply spatial smoothing
                 // Smooth kernel dimension (must be an odd number)
@@ -308,12 +313,18 @@ int main(int argc, char* argv[]) {
                 cube(l,_,_) = tmp;
 
                 // 4) Decrease the uncertainty accordingly
-                kernel_error_renorm = sqrt(total(sqr(kernel)));
-                err(l,_,_) *= kernel_error_renorm;
+                tmp = err(l,_,_);
+                idb = where(!is_finite(tmp));
+                tmp[idb] = 0;
+                tmp = sqrt(convolve2d(sqr(tmp), sqr(kernel)));
+                tmp[idb] = dnan;
+                err(l,_,_) = tmp;
             }
         } else {
             cube(l,_,_) = fnan;
             err(l,_,_) = fnan;
+            cube_ns(l,_,_) = fnan;
+            err_ns(l,_,_) = fnan;
         }
     }
 
@@ -406,8 +417,12 @@ int main(int argc, char* argv[]) {
                 lpix.push_back(l+1);
                 lambda.push_back(lam[l]);
 
-                flux.push_back(total(cube(l,_,_)[idd])*dl);
-                flux_err.push_back(sqrt(total(sqr(err(l,_,_)[idd])))*dl/kernel_error_renorm); // just indicative
+                // If we applied spatial smoothing, the errors are correlated
+                // and the standard error propagation will under estimate the
+                // true uncertainty. So we rather measure the flux on the
+                // non-smoothed image
+                flux.push_back(total(cube_ns(l,_,_)[idd])*dl);
+                flux_err.push_back(sqrt(total(sqr(err_ns(l,_,_)[idd])))*dl);
 
                 x.push_back(total((snr*cx)[idd])/total(snr[idd]));
                 y.push_back(total((snr*cy)[idd])/total(snr[idd]));
