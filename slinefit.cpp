@@ -429,8 +429,12 @@ int main(int argc, char* argv[]) {
     double zup = interpolate(zs, cpz, 0.84) - z;
 
     if (verbose) {
-        print("best redshift: ", z, " + ", zup, " - ", zlow,
-            " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+        if (is_finite(z)) {
+            print("best redshift: ", z, " + ", zup, " - ", zlow,
+                " (chi2: ", chi2, ", reduced: ", chi2/ndof, ")");
+        } else {
+            print("could not fit any redshift...");
+        }
     }
 
     // Rescale fluxes and uncertainties
@@ -483,7 +487,7 @@ int main(int argc, char* argv[]) {
         otbl.write_columns("lambda", llambda, "lines", tlines, "pzx", zs, "pzy", pz);
     }
 
-    if (save_model) {
+    if (save_model && !best_model.empty()) {
         // Rescale model
         best_model *= 1e-17;
 
