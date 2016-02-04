@@ -762,7 +762,9 @@ int main(int argc, char* argv[]) {
             if (qflag2[i1] < qflag2[i2]) return false;
             if (fmatch[i1] > fmatch[i2]) return true;
             if (fmatch[i1] < fmatch[i2]) return false;
-            return dvmax[i1] < dvmax[i2];
+            if (dvmax[i1] < dvmax[i2]) return true;
+            if (dvmax[i1] > dvmax[i2]) return false;
+            return zs[i1] < zs[i2];
         });
 
         // Apply qflag cut
