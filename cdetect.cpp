@@ -282,6 +282,8 @@ int main(int argc, char* argv[]) {
 
             if (emethod != error_method::pipeline) {
                 err(l,_,_) = (img_rms*error_scale)*exposure(l,_,_);
+            } else {
+                err(l,_,_) *= error_scale;
             }
 
             if (spatial_smooth > 0) {
