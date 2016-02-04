@@ -58,6 +58,7 @@ int main(int argc, char* argv[]) {
     double maxdv = 200.0;
     double maxdist = 5;
     double qflag2_snr_threshold = 5.0;
+    bool disable_zsearch = false;
     uint_t minqflag = 0;
     bool single_source = false;
     std::string outdir;
@@ -66,7 +67,8 @@ int main(int argc, char* argv[]) {
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
-        qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, name(semethod, "emethod")));
+        qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, disable_zsearch,
+        name(semethod, "emethod")));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -439,7 +441,7 @@ int main(int argc, char* argv[]) {
     }
 
     // If no detection, there nothing more we can do
-    if (x.empty()) return 0;
+    if (x.empty() || disable_zsearch) return 0;
 
     // Combine multiple wavelengths into a single source, based on distance of emission
     // centroid
@@ -1006,10 +1008,15 @@ void print_help(const std::map<std::string,line_t>& db) {
         "photometry. 'qflag2' is the number of matched spectral feature with S/N greater "
         "than 5. NB: one line can be matched to multiple spectral features if the line is "
         "spectrally extended. 'fmatch' is the fraction of the detected spectral features "
-        "that were matched to known emission lines. Finally, 'maxdv' is the largest "
+        "that were matched to known emission lines. 'maxdv' is the largest "
         "velocity offset between two matched lines in km/s. An uncertainty on the derived "
         "redshift is computed based solely on 1) the spectral resolution of the binned "
-        "spectrum and 2) the number of matched lines.");
+        "spectrum and 2) the number of matched lines. Lastly, the list of matched lines "
+        "is also given, with the following format: 'match1,match2,...', where 'matchX' "
+        "lists the lines that are matched to one spectral feature, and the format is "
+        "'id:line1/line2/line3/...' where 'id' is the ID of the spectral feature and "
+        "'lineY' is the code name of the line that was matched. The 'matchX' are sorted "
+        "by decreasing S/N.");
     print("Available lines for matching:");
     print_available_lines(db);
     paragraph("\nNote: you can add your own lines either by modifying the source code of the "
@@ -1074,6 +1081,9 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("save_cubes", "Set this flag to write to disk the filtered flux and uncertainty "
         "cubes that are used to perform the detection. They will be saved in *_filt.fits.");
     print("\nAvailable options for redshift identification (in order of importance):");
+    bullet("disable_zsearch", "Set this flag to skip the redshift identification step "
+        "and only list the spectral detections. You would typically set this flag on if "
+        "you are looking for continuum emission.");
     bullet("maxdist=...", "Must be a number. It defines the maximum distance on the sky (in "
         "pixels) between two spectral sources to be considered as part of the same "
         "object. Default is 5 pixels, which is fairly generous. You may want to decrease "
