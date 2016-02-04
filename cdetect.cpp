@@ -685,7 +685,7 @@ int main(int argc, char* argv[]) {
                     vec1s tmpl(idus.size());
                     for (uint_t i : range(ids)) {
                         vec1u idl = idz[where(zfrom[idz] == zfrom[ids[i]])];
-                        tmpl[i] = strn(zfrom[ids[i]])+":"+collapse(lids[idl], "/");
+                        tmpl[i] = strn(zfrom[ids[i]]+1)+":"+collapse(lids[idl], "/");
                     }
 
                     lids.push_back(collapse(tmpl,","));
@@ -750,7 +750,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (!zs.empty()) {
-            lids[_-(zfrom.size()-1)] = strna(zfrom)+":"+lids[_-(zfrom.size()-1)];
+            lids[_-(zfrom.size()-1)] = strna(zfrom+1)+":"+lids[_-(zfrom.size()-1)];
         }
 
         // Sort all the solutions by decreasing quality flag and increasing dvmax
