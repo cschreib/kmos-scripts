@@ -29,7 +29,7 @@ rtype_t<Type> cs_inplace_weighted_median(vec<Dim,Type>& v, const vec<Dim,TypeW>&
 
 template<std::size_t Dim, typename Type, typename TypeW>
 rtype_t<Type> cs_weighted_median(vec<Dim,Type> v, const vec<Dim,TypeW>& w) {
-    return inplace_weighted_median(v, w);
+    return cs_inplace_weighted_median(v, w);
 }
 
 void print_help();
