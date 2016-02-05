@@ -164,6 +164,23 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Read 2D astrometry
+    std::string ctype1, ctype2;
+    std::string cunit1, cunit2;
+    double crpix1, crpix2, crval1, crval2, cdelt1, cdelt2;
+    double cd11, cd12, cd21, cd22;
+    if (!fimg.read_keyword("CRPIX1", crpix1) || !fimg.read_keyword("CRPIX2", crpix2) ||
+        !fimg.read_keyword("CRVAL1", crval1) || !fimg.read_keyword("CRVAL2", crval2) ||
+        !fimg.read_keyword("CDELT1", cdelt1) || !fimg.read_keyword("CDELT2", cdelt2) ||
+        !fimg.read_keyword("CTYPE1", ctype1) || !fimg.read_keyword("CTYPE2", ctype2) ||
+        !fimg.read_keyword("CUNIT1", cunit1) || !fimg.read_keyword("CUNIT2", cunit2) ||
+        !fimg.read_keyword("CTYPE1", ctype1) || !fimg.read_keyword("CTYPE2", ctype2) ||
+        !fimg.read_keyword("CD1_1",  cd11)   || !fimg.read_keyword("CD1_2",  cd12) ||
+        !fimg.read_keyword("CD2_1",  cd21)   || !fimg.read_keyword("CD2_2",  cd22)) {
+        error("could not read WCS information for spatial axes");
+        return 1;
+    }
+
     vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
     double dl = cdelt*1e4;
 
@@ -398,38 +415,32 @@ int main(int argc, char* argv[]) {
     if (save_cubes) {
         fits::output_image oimg(ofilebase+"_filt.fits");
 
+        auto write_wcs = [&]() {
+            oimg.write_header(fimg.read_header());
+            if (spectral_bin > 1) {
+                oimg.write_keyword("CDELT3", cdelt);
+                oimg.write_keyword("CRPIX3", crpix);
+                oimg.write_keyword("CD3_3", cdelt);
+            }
+        };
+
         // Empty primary array (KMOS convention)
         oimg.write(vec2d(0,0));
 
         // Flux
         oimg.reach_hdu(1);
         oimg.write(cube);
-        oimg.write_header(fimg.read_header());
-        if (spectral_bin > 1) {
-            oimg.write_keyword("CDELT3", cdelt);
-            oimg.write_keyword("CRPIX3", crpix);
-            oimg.write_keyword("CD3_3", cdelt);
-        }
+        write_wcs();
 
         // Uncertainty
         oimg.reach_hdu(2);
         oimg.write(err);
-        oimg.write_header(fimg.read_header());
-        if (spectral_bin > 1) {
-            oimg.write_keyword("CDELT3", cdelt);
-            oimg.write_keyword("CRPIX3", crpix);
-            oimg.write_keyword("CD3_3", cdelt);
-        }
+        write_wcs();
 
         // S/N
         oimg.reach_hdu(3);
         oimg.write(cube/err);
-        oimg.write_header(fimg.read_header());
-        if (spectral_bin > 1) {
-            oimg.write_keyword("CDELT3", cdelt);
-            oimg.write_keyword("CRPIX3", crpix);
-            oimg.write_keyword("CD3_3", cdelt);
-        }
+        write_wcs();
     }
 
     // Now we are ready to try detecting stuff above the noise
@@ -450,11 +461,15 @@ int main(int argc, char* argv[]) {
     vec1d flux;
     vec1d flux_err;
 
+    vec2u cseg(cube.dims[1], cube.dims[2]);
+
     if (verbose) note("finding and segmenting detections...");
     for (uint_t l : range(nlam)) {
         // Flag pixels above the S/N threshold
         vec2d snr = cube(l,_,_)/err(l,_,_);
         vec2u det = vec2u(snr > snr_det);
+
+        cseg += det;
 
         // Segment them into individual sources
         uint_t nsrc;
@@ -498,6 +513,11 @@ int main(int argc, char* argv[]) {
     if (verbose) note("found ", nsrc_tot, " source", (nsrc_tot > 1 ? "s" : ""), " in the cube");
 
     fits::output_image fseg(ofilebase+"_seg.fits");
+
+    fseg.write(vec2d(0,0)); // empty primary
+
+    // Write segmentation cube
+    fseg.reach_hdu(1);
     fseg.write(seg);
     fseg.write_header(fimg.read_header());
     if (spectral_bin > 1) {
@@ -505,6 +525,25 @@ int main(int argc, char* argv[]) {
         fseg.write_keyword("CRPIX3", crpix);
         fseg.write_keyword("CD3_3", cdelt);
     }
+
+    // Write collapsed segmentation
+    fseg.reach_hdu(2);
+    fseg.write(cseg);
+    fseg.write_keyword("CRPIX1", crpix1);
+    fseg.write_keyword("CRPIX2", crpix2);
+    fseg.write_keyword("CRVAL1", crval1);
+    fseg.write_keyword("CRVAL2", crval2);
+    fseg.write_keyword("CDELT1", cdelt1);
+    fseg.write_keyword("CDELT2", cdelt2);
+    fseg.write_keyword("CTYPE1", ctype1);
+    fseg.write_keyword("CTYPE2", ctype2);
+    fseg.write_keyword("CUNIT1", cunit1);
+    fseg.write_keyword("CUNIT2", cunit2);
+    fseg.write_keyword("CD1_1",  cd11);
+    fseg.write_keyword("CD1_2",  cd12);
+    fseg.write_keyword("CD2_1",  cd21);
+    fseg.write_keyword("CD2_2",  cd22);
+    fseg.close();
 
     vec1d ra, dec;
     fits::xy2ad(fits::wcs(fimg.read_header()), x+1, y+1, ra, dec);
