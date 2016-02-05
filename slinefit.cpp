@@ -318,6 +318,10 @@ int main(int argc, char* argv[]) {
                 }
             }
 
+            // Exclude models that are zero from the fit
+            vec1u idne = where(partial_total(1, sqr(m)) > 0.0);
+            m = m(idne,_);
+
             linfit_result res = linfit_pack(flx, err, m);
 
             bool better = res.success && res.chi2 < chi2;
@@ -325,8 +329,10 @@ int main(int argc, char* argv[]) {
                 chi2 = res.chi2;
                 z = zs[iz];
 
-                flux     = res.params;
-                flux_err = res.errors;
+                flux[_] = dnan;
+                flux_err[_] = dnan;
+                flux[idne] = res.params;
+                flux_err[idne] = res.errors;
 
                 if (same_width) {
                     p[uindgen(lines.size())+1] = flux;
@@ -340,8 +346,8 @@ int main(int argc, char* argv[]) {
 
                 if (save_model) {
                     best_model = vec1d(lam.dims);
-                    for (uint_t il : range(lines)) {
-                        best_model += flux[il]*m(il,_);
+                    for (uint_t il : range(idne)) {
+                        best_model += res.params[il]*m(il,_);
                     }
                 }
             }
