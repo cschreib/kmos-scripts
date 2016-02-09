@@ -271,7 +271,12 @@ int main(int argc, char* argv[]) {
         }
 
         // Update wavelength array
-        crpix -= (spectral_bin-1)*cdelt/2.0;
+        crpix = (crpix - 1)/spectral_bin + 1;
+        if (spectral_bin % 2 == 0) {
+            crpix += 1/(2*spectral_bin) - 0.5;
+        } else {
+            crpix += -1/spectral_bin;
+        }
         cdelt *= spectral_bin;
         lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
     } else {
