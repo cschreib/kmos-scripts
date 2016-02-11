@@ -37,7 +37,20 @@ int main(int argc, char* argv[]) {
         {"halpha",  line_t("halpha",  {0.6563},         {1.0})},
         {"n2",      line_t("n2",      {0.6584},         {1.0})},
         {"s2",      line_t("s2",      {0.6718, 0.6733}, {1.0, 0.75})},
-        {"palpha",  line_t("palpha",  {1.875},          {1.0})}
+        {"palpha",  line_t("palpha",  {1.875},          {1.0})},
+        {"o1",      line_t("o1",      {145.525},        {1.0})},
+        {"c2",      line_t("c2",      {157.741},        {1.0})},
+        {"c1_370",  line_t("c1_370",  {370.42},         {1.0})},
+        {"c1_609",  line_t("c1_609",  {609.14},         {1.0})},
+        {"co98",    line_t("co98",    {298.12},         {1.0})},
+        {"co87",    line_t("co87",    {325.23},         {1.0})},
+        {"co76",    line_t("co76",    {371.65},         {1.0})},
+        {"co65",    line_t("co65",    {433.57},         {1.0})},
+        {"co54",    line_t("co54",    {520.23},         {1.0})},
+        {"co43",    line_t("co43",    {650.25},         {1.0})},
+        {"co32",    line_t("co32",    {866.96},         {1.0})},
+        {"co21",    line_t("co21",    {1300.40},        {1.0})},
+        {"co10",    line_t("co10",    {2600.75},        {1.0})}
     };
 
     if (argc < 2) {
@@ -70,7 +83,8 @@ int main(int argc, char* argv[]) {
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
         snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
         qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, disable_zsearch,
-        lambda_pad, lines, name(semethod, "emethod")));
+        lambda_pad, lines, name(semethod, "emethod")
+    ));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -154,14 +168,29 @@ int main(int argc, char* argv[]) {
         fimg.read(perror);
     }
 
-    // Build wavelength axis
+    // Read wavelength/frequency axis WCS
     uint_t nlam = cube.dims[0];
     double cdelt = 1, crpix = 1, crval = 1;
-    if (!fimg.read_keyword("CDELT3", cdelt) ||
-        !fimg.read_keyword("CRPIX3", crpix) ||
-        !fimg.read_keyword("CRVAL3", crval)) {
+    vec1s missing;
+    if (!fimg.read_keyword("CDELT3", cdelt)) missing.push_back("CDELT3");
+    if (!fimg.read_keyword("CRPIX3", crpix)) missing.push_back("CRPIX3");
+    if (!fimg.read_keyword("CRVAL3", crval)) missing.push_back("CRVAL3");
+    if (!missing.empty()) {
         error("could not read WCS information for wavelength axis");
+        note("missing keyword", missing.size() > 1 ? "s " : " ", collapse(missing, ", "));
         return 1;
+    }
+
+    bool frequency = false;
+    std::string ctype;
+    if (fimg.read_keyword("CTYPE3", ctype)) {
+        if (ctype == "FREQ") {
+            // Cube in frequency units, assuming in Hz
+            frequency = true;
+        } else if (ctype == "WAVE") {
+            // Cube in wavelength units, assuming in micron
+            frequency = false;
+        }
     }
 
     // Read 2D astrometry
@@ -169,20 +198,26 @@ int main(int argc, char* argv[]) {
     std::string cunit1, cunit2;
     double crpix1, crpix2, crval1, crval2, cdelt1, cdelt2;
     double cd11, cd12, cd21, cd22;
-    if (!fimg.read_keyword("CRPIX1", crpix1) || !fimg.read_keyword("CRPIX2", crpix2) ||
-        !fimg.read_keyword("CRVAL1", crval1) || !fimg.read_keyword("CRVAL2", crval2) ||
-        !fimg.read_keyword("CDELT1", cdelt1) || !fimg.read_keyword("CDELT2", cdelt2) ||
-        !fimg.read_keyword("CTYPE1", ctype1) || !fimg.read_keyword("CTYPE2", ctype2) ||
-        !fimg.read_keyword("CUNIT1", cunit1) || !fimg.read_keyword("CUNIT2", cunit2) ||
-        !fimg.read_keyword("CTYPE1", ctype1) || !fimg.read_keyword("CTYPE2", ctype2) ||
-        !fimg.read_keyword("CD1_1",  cd11)   || !fimg.read_keyword("CD1_2",  cd12) ||
-        !fimg.read_keyword("CD2_1",  cd21)   || !fimg.read_keyword("CD2_2",  cd22)) {
+
+    if (!fimg.read_keyword("CRPIX1", crpix1)) missing.push_back("CRPIX1");
+    if (!fimg.read_keyword("CRPIX2", crpix2)) missing.push_back("CRPIX2");
+    if (!fimg.read_keyword("CRVAL1", crval1)) missing.push_back("CRVAL1");
+    if (!fimg.read_keyword("CRVAL2", crval2)) missing.push_back("CRVAL2");
+    if (!fimg.read_keyword("CDELT1", cdelt1)) missing.push_back("CDELT1");
+    if (!fimg.read_keyword("CDELT2", cdelt2)) missing.push_back("CDELT2");
+    if (!fimg.read_keyword("CTYPE1", ctype1)) missing.push_back("CTYPE1");
+    if (!fimg.read_keyword("CTYPE2", ctype2)) missing.push_back("CTYPE2");
+    if (!fimg.read_keyword("CUNIT1", cunit1)) missing.push_back("CUNIT1");
+    if (!fimg.read_keyword("CUNIT2", cunit2)) missing.push_back("CUNIT2");
+    if (!fimg.read_keyword("CD1_1",  cd11))   missing.push_back("CD1_1");
+    if (!fimg.read_keyword("CD1_2",  cd12))   missing.push_back("CD1_2");
+    if (!fimg.read_keyword("CD2_1",  cd21))   missing.push_back("CD2_1");
+    if (!fimg.read_keyword("CD2_2",  cd22))   missing.push_back("CD2_2");
+    if (!missing.empty()) {
         error("could not read WCS information for spatial axes");
+        note("missing keyword", missing.size() > 1 ? "s " : " ", collapse(missing, ","));
         return 1;
     }
-
-    vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
-    double dl = cdelt*1e4;
 
     // Flag out the pixels at the border of the spectrum
     if (lambda_pad != 0) {
@@ -273,15 +308,22 @@ int main(int argc, char* argv[]) {
         // Update wavelength array
         crpix = (crpix - 0.5)/spectral_bin + 0.5;
         cdelt *= spectral_bin;
-        lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
     } else {
         exposure = replicate(1.0, cube.dims);
     }
 
+    // Build wavelength axis
+    vec1d  lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    double dspec = abs(cdelt);
+    double dlam = dspec;
+    if (frequency) {
+        double lam0 = 3e14/mean(lam);
+        lam = 3e14/lam;
+        dlam = dlam*sqr(lam0)/3e14;
+    }
+
     // Read exposure map if provided
-    // vec2d exposure;
     vec1u badexp;
-    // vec2d rms_renorm;
     if (!expmap.empty()) {
         if (verbose) note("taking into account exposure map...");
 
@@ -501,8 +543,8 @@ int main(int argc, char* argv[]) {
                 // and the standard error propagation will under estimate the
                 // true uncertainty. So we rather measure the flux on the
                 // non-smoothed image
-                flux.push_back(total(cube_ns(l,_,_)[idd])*dl);
-                flux_err.push_back(sqrt(total(sqr(err_ns(l,_,_)[idd])))*dl);
+                flux.push_back(total(cube_ns(l,_,_)[idd])*dspec);
+                flux_err.push_back(sqrt(total(sqr(err_ns(l,_,_)[idd])))*dspec);
 
                 x.push_back(total((snr*cx)[idd])/total(snr[idd]));
                 y.push_back(total((snr*cy)[idd])/total(snr[idd]));
@@ -548,16 +590,35 @@ int main(int argc, char* argv[]) {
     vec1d ra, dec;
     fits::xy2ad(fits::wcs(fimg.read_header()), x+1, y+1, ra, dec);
 
+    std::string lambda_name = (frequency ? "frequency" : "lambda");
+    std::string lpix_name = (frequency ? "fpix" : "lpix");
+    std::string lambda_unit = (frequency ? "[Hz]" : "[um]");
+    std::string flux_unit = (frequency ? "flux [Jy Hz]" : "flux [erg/s/cm2]");
+
+    // Adjust flux unit
+    if (frequency) {
+        // Northing to do
+        // Assuming cube is given in Jy
+    } else {
+        // Convert dspec from micron to Angstroms
+        // Assuming cube is given in erg/s/cm2/A
+        flux     *= 1e4;
+        flux_err *= 1e4;
+    }
+
     if (ascii) {
         vec1s hdr = {"ID", "x", "y", "RA [deg]", "Dec [deg]", "Npix",
-            "lambda [um]", "lambda [pix]", "flux [erg/s/cm2]", "error"};
+            lambda_name+" "+lambda_unit, lambda_name+" [pix]", flux_unit, "error"};
+
+        vec1s slambda = (frequency ? strna_sci(3e14/lambda) : strna(lambda));
 
         file::write_table_hdr(ofilebase+"_cat.cat", 18, hdr,
-            id, x, y, ra, dec, npix, lambda, lpix, strna_sci(flux), strna_sci(flux_err)
+            id, x, y, ra, dec, npix, slambda, lpix, strna_sci(flux), strna_sci(flux_err)
         );
     } else {
         fits::write_table(ofilebase+"_cat.fits", ftable(
-            id, x, y, ra, dec, npix, lambda, lpix, flux, flux_err
+            id, x, y, ra, dec, npix, name(lambda, lambda_name), name(lpix, lpix_name),
+            flux, flux_err
         ));
     }
 
@@ -629,6 +690,7 @@ int main(int argc, char* argv[]) {
     for (auto& l : linedb)
     for (uint_t ill : range(l.second.lambda)) {
         ldb.push_back(l.second.lambda[ill]);
+
         if (l.second.lambda.size() == 1) {
             ndb.push_back(l.first);
         } else {
@@ -639,6 +701,7 @@ int main(int argc, char* argv[]) {
     // Sort it by wavelength
     {
         vec1u ids = sort(ldb);
+        if (frequency) ids = reverse(ids);
         ldb = ldb[ids]; ndb = ndb[ids];
     }
 
@@ -690,7 +753,7 @@ int main(int argc, char* argv[]) {
                 zline.push_back(ill);
                 fmatch.push_back(1.0/lg.size());
                 dvmax.push_back(0.0);
-                dzs.push_back(0.5*cdelt/lg[il]);
+                dzs.push_back(0.5*dlam/lg[il]);
                 lids.push_back(ndb[ill]);
 
                 uint_t tqflag2 = snrg[il] > qflag2_snr_threshold ? 1 : 0;

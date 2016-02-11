@@ -32,7 +32,20 @@ int main(int argc, char* argv[]) {
         {"halpha",  line_t("halpha",  {0.6563},         {1.0})},
         {"n2",      line_t("n2",      {0.6584},         {1.0})},
         {"s2",      line_t("s2",      {0.6718, 0.6733}, {1.0, 0.75})},
-        {"palpha",  line_t("palpha",  {1.875},          {1.0})}
+        {"palpha",  line_t("palpha",  {1.875},          {1.0})},
+        {"o1",      line_t("o1",      {145.525},        {1.0})},
+        {"c2",      line_t("c2",      {157.741},        {1.0})},
+        {"c1_370",  line_t("c1_370",  {370.42},         {1.0})},
+        {"c1_609",  line_t("c1_609",  {609.14},         {1.0})},
+        {"co98",    line_t("co98",    {298.12},         {1.0})},
+        {"co87",    line_t("co87",    {325.23},         {1.0})},
+        {"co76",    line_t("co76",    {371.65},         {1.0})},
+        {"co65",    line_t("co65",    {433.57},         {1.0})},
+        {"co54",    line_t("co54",    {520.23},         {1.0})},
+        {"co43",    line_t("co43",    {650.25},         {1.0})},
+        {"co32",    line_t("co32",    {866.96},         {1.0})},
+        {"co21",    line_t("co21",    {1300.40},        {1.0})},
+        {"co10",    line_t("co10",    {2600.75},        {1.0})}
     };
 
     if (argc < 2) {
@@ -53,12 +66,13 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
     double oh_threshold = dnan;
     bool allow_absorption = false;
+    bool uniform_error = false;
     std::string tline;
     std::string outdir;
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tline, "line"), width,
-        minsnr, fit_background, expmap, minexp, delta_z,
+        minsnr, fit_background, expmap, minexp, delta_z, uniform_error,
         velocity, spatial_smooth, verbose, oh_threshold, allow_absorption, outdir
     ));
 
@@ -146,7 +160,26 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    bool frequency = false;
+    std::string ctype;
+    if (fimg.read_keyword("CTYPE3", ctype)) {
+        if (ctype == "FREQ") {
+            // Cube in frequency units
+            frequency = true;
+        } else if (ctype == "WAVE") {
+            // Cube in wavelength units, nothing to do
+            frequency = false;
+        }
+    }
+
+    vec1d  lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    double dspec = abs(cdelt);
+    double dlam = dspec;
+    if (frequency) {
+        double lam0 = 3e14/mean(lam);
+        lam = 3e14/lam;
+        dlam = dlam*sqr(lam0)/3e14;
+    }
 
     // Read 2D astrometry
     std::string ctype1, ctype2;
@@ -261,7 +294,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Define redshift grid so as to have the requested number of samples per wavelength element
-    double tdz = delta_z*cdelt/(line.lambda[0]*(1.0+z0));
+    double tdz = delta_z*dlam/(line.lambda[0]*(1.0+z0));
     uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
@@ -274,11 +307,9 @@ int main(int argc, char* argv[]) {
     vec2d z(cflx.dims[1], cflx.dims[2]); z[_] = dnan;
     vec2d flux(cflx.dims[1], cflx.dims[2]); flux[_] = dnan;
     vec2d flux_err(cflx.dims[1], cflx.dims[2]); flux_err[_] = dnan;
-    for (uint_t y : range(cflx.dims[1]))
-    for (uint_t x : range(cflx.dims[2])) {
-        vec1d flx = cflx(_,y,x);
-        vec1d err = cerr(_,y,x);
 
+    if (uniform_error) {
+        auto pg = progress_start(zs.size());
         for (uint_t iz : range(zs)) {
             vec1d model(lam.dims);
             for (uint_t il : range(line.lambda)) {
@@ -288,19 +319,57 @@ int main(int argc, char* argv[]) {
                 )/(sqrt(2.0*dpi)*tw*1e4);
             }
 
-            linfit_result res;
-            if (fit_background) {
-                res = linfit(flx, err, model, 1.0);
-            } else {
-                res = linfit(flx, err, model);
+            vec1d err = cerr(_,cflx.dims[1]/2,cflx.dims[2]/2);
+            auto lf = (fit_background ? linfit_batch(err, model, 1.0) : linfit_batch(err, model));
+            auto& res = lf.fr;
+
+            for (uint_t y : range(cflx.dims[1]))
+            for (uint_t x : range(cflx.dims[2])) {
+                vec1d flx = cflx(_,y,x);
+
+                lf.fit(flx);
+                if (res.chi2 < chi2(y,x) && (res.params[0] > 0 || allow_absorption)) {
+                    chi2(y,x) = res.chi2;
+                    z(y,x) = zs[iz];
+                    flux(y,x) = res.params[0];
+                    flux_err(y,x) = res.errors[0];
+                }
             }
 
-            if (res.chi2 < chi2(y,x) && (res.params[0] > 0 || allow_absorption)) {
-                chi2(y,x) = res.chi2;
-                z(y,x) = zs[iz];
-                flux(y,x) = res.params[0];
-                flux_err(y,x) = res.errors[0];
+            if (verbose) progress(pg);
+        }
+    } else {
+        auto pg = progress_start(flux.size());
+        for (uint_t y : range(cflx.dims[1]))
+        for (uint_t x : range(cflx.dims[2])) {
+            vec1d flx = cflx(_,y,x);
+            vec1d err = cerr(_,y,x);
+
+            for (uint_t iz : range(zs)) {
+                vec1d model(lam.dims);
+                for (uint_t il : range(line.lambda)) {
+                    double tw = (width/3e5)*line.lambda[il]*(1.0+zs[iz]);
+                    model += line.ratio[il]*exp(
+                        -sqr(line.lambda[il]*(1.0+zs[iz]) - lam)/(2.0*sqr(tw))
+                    )/(sqrt(2.0*dpi)*tw*1e4);
+                }
+
+                linfit_result res;
+                if (fit_background) {
+                    res = linfit(flx, err, model, 1.0);
+                } else {
+                    res = linfit(flx, err, model);
+                }
+
+                if (res.chi2 < chi2(y,x) && (res.params[0] > 0 || allow_absorption)) {
+                    chi2(y,x) = res.chi2;
+                    z(y,x) = zs[iz];
+                    flux(y,x) = res.params[0];
+                    flux_err(y,x) = res.errors[0];
+                }
             }
+
+            if (verbose) progress(pg);
         }
     }
 
