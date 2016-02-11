@@ -157,12 +157,12 @@ int main(int argc, char* argv[]) {
 
     // Read cube
     std::string infile = argv[1];
-    vec3d cube;
+    vec3f cube;
     fits::input_image fimg(infile);
     fimg.reach_hdu(1);
     fimg.read(cube);
 
-    vec3d perror;
+    vec3f perror;
     if (emethod == error_method::pipeline) {
         fimg.reach_hdu(2);
         fimg.read(perror);
@@ -257,23 +257,23 @@ int main(int argc, char* argv[]) {
         }
 
         // Flag bad spectral elements
-        cube(_-lambda_min,_,_) = dnan;
-        cube(lambda_max-_,_,_) = dnan;
+        cube(_-lambda_min,_,_) = fnan;
+        cube(lambda_max-_,_,_) = fnan;
     }
 
     // Bin spectral pixels and start building exposure map
-    vec3d exposure;
+    vec3f exposure;
     if (spectral_bin > 1) {
         if (verbose) note("rebinning spectral axis...");
 
         // Rebin SNR array
         nlam = floor(nlam/double(spectral_bin));
 
-        vec3d ocube = cube;
+        vec3f ocube = cube;
         cube.resize(nlam, cube.dims[1], cube.dims[2]);
         cube[_] = 0;
 
-        vec3d operror;
+        vec3f operror;
         if (emethod == error_method::pipeline) {
             operror = perror;
             perror.resize(cube.dims);
@@ -281,15 +281,15 @@ int main(int argc, char* argv[]) {
         }
 
         // Keep track of how many pixels were used in the sum
-        vec3u cnt(cube.dims);
+        exposure.resize(cube.dims);
 
         // Compute the sum of the pixels in each bin
         for (uint_t l : range(nlam)) {
             for (uint_t i : range(spectral_bin)) {
-                vec2d tmp = ocube(l*spectral_bin + i,_,_);
+                vec2f tmp = ocube(l*spectral_bin + i,_,_);
                 vec1u idg = where(is_finite(tmp));
                 cube(l,_,_)[idg] += tmp[idg];
-                cnt(l,_,_)[idg] += 1;
+                exposure(l,_,_)[idg] += 1;
 
                 if (emethod == error_method::pipeline) {
                     tmp = operror(l*spectral_bin + i,_,_);
@@ -298,18 +298,18 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        cube /= cnt;
-        exposure = 1/sqrt(cnt);
-
+        cube /= exposure;
         if (emethod == error_method::pipeline) {
-            perror = sqrt(perror)/cnt;
+            perror = sqrt(perror)/exposure;
         }
+
+        exposure = 1/sqrt(exposure);
 
         // Update wavelength array
         crpix = (crpix - 0.5)/spectral_bin + 0.5;
         cdelt *= spectral_bin;
     } else {
-        exposure = replicate(1.0, cube.dims);
+        exposure = replicate(1.0f, cube.dims);
     }
 
     // Build wavelength axis
@@ -345,17 +345,20 @@ int main(int argc, char* argv[]) {
     }
 
     // For each spectral slice...
-    vec3d err;
+    vec3f err;
     if (emethod == error_method::pipeline) {
-        err = perror;
+        err = std::move(perror);
     } else {
-        err = replicate(dnan, cube.dims);
+        err = replicate(fnan, cube.dims);
     }
 
     if (verbose) note("filtering wavelength slices...");
 
-    vec3d cube_ns(cube.dims);
-    vec3d err_ns(cube.dims);
+    vec3f cube_ns, err_ns;
+    if (spatial_smooth > 0) {
+        cube_ns.resize(cube.dims);
+        err_ns.resize(cube.dims);
+    }
 
     for (uint_t l : range(nlam)) {
         // 1) Flag baddly covered areas with exposure map (optional)
@@ -412,10 +415,10 @@ int main(int argc, char* argv[]) {
                 err(l,_,_) *= error_scale;
             }
 
-            cube_ns(l,_,_) = cube(l,_,_);
-            err_ns(l,_,_) = err(l,_,_);
-
             if (spatial_smooth > 0) {
+                cube_ns(l,_,_) = cube(l,_,_);
+                err_ns(l,_,_) = err(l,_,_);
+
                 // 3) Apply spatial smoothing
                 // Smooth kernel dimension (must be an odd number)
                 uint_t npix = 10*spatial_smooth;
@@ -447,10 +450,16 @@ int main(int argc, char* argv[]) {
         } else {
             cube(l,_,_) = fnan;
             err(l,_,_) = fnan;
-            cube_ns(l,_,_) = fnan;
-            err_ns(l,_,_) = fnan;
+
+            if (spatial_smooth > 0) {
+                cube_ns(l,_,_) = fnan;
+                err_ns(l,_,_) = fnan;
+            }
         }
     }
+
+    // Free some unused cubes
+    { vec3f eraser = std::move(exposure); }
 
     // If asked, save the processed cubes to disk
     std::string ofilebase = outdir+file::remove_extension(file::get_basename(infile));
@@ -543,8 +552,13 @@ int main(int argc, char* argv[]) {
                 // and the standard error propagation will under estimate the
                 // true uncertainty. So we rather measure the flux on the
                 // non-smoothed image
-                flux.push_back(total(cube_ns(l,_,_)[idd])*dspec);
-                flux_err.push_back(sqrt(total(sqr(err_ns(l,_,_)[idd])))*dspec);
+                if (spatial_smooth > 0) {
+                    flux.push_back(total(cube_ns(l,_,_)[idd])*dspec);
+                    flux_err.push_back(sqrt(total(sqr(err_ns(l,_,_)[idd])))*dspec);
+                } else {
+                    flux.push_back(total(cube(l,_,_)[idd])*dspec);
+                    flux_err.push_back(sqrt(total(sqr(err(l,_,_)[idd])))*dspec);
+                }
 
                 x.push_back(total((snr*cx)[idd])/total(snr[idd]));
                 y.push_back(total((snr*cy)[idd])/total(snr[idd]));

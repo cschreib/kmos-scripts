@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
     // Read cube
     if (verbose) note("read input cube...");
     std::string infile = argv[1];
-    vec3d cflx, cerr;
+    vec3f cflx, cerr;
     fits::input_image fimg(infile);
     fimg.reach_hdu(1);
     fimg.read(cflx);
