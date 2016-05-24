@@ -16,7 +16,7 @@ struct line_t {
 void print_help(const std::map<std::string,line_t>& db);
 void print_available_lines(const std::map<std::string,line_t>& db);
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
         {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},

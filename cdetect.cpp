@@ -18,12 +18,13 @@ vec2u grow_within(vec2u map, vec2b mask);
 void print_help(const std::map<std::string,line_t>& db);
 void print_available_lines(const std::map<std::string,line_t>& db);
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     // NB: the line grouping and theoretical ratios are not used here
     // the whole data base will be "flattended" later on. This format
     // is just used for consistency with clinefit and slinefit.
     std::map<std::string,line_t> linedb = {
+        // name            name        wavelength        flux ratio
         {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},
         {"c4",      line_t("c4",      {0.15495},        {1.0})},
         {"c3",      line_t("c3",      {0.19087},        {1.0})},

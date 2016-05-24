@@ -17,7 +17,7 @@ struct line_t {
 void print_help(const std::map<std::string,line_t>& db);
 void print_available_lines(const std::map<std::string,line_t>& db);
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     // Build the line data base (you can add your own there!)
     std::map<std::string,line_t> linedb = {
         {"lyalpha", line_t("lyalpha", {0.12157},        {1.0})},
@@ -223,7 +223,7 @@ int main(int argc, char* argv[]) {
 
     double chi2 = dinf;
     double z = dnan;
-    vec1d pz(zs.size());
+    vec1d pz = replicate(finf, zs.size());
     vec1d flux(lines.size());
     vec1d flux_err(lines.size());
     vec1d width(lines.size());
@@ -352,7 +352,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (res.success) {
+            if (res.success && res.chi2 < pz[iz]) {
                 pz[iz] = res.chi2;
             }
 
@@ -479,7 +479,7 @@ int main(int argc, char* argv[]) {
     if (verbose) note("write to disk...");
 
     if (ascii) {
-        vec1s hdr = {"line", "flux [erg/s/cm2]", "error", "width [um]", "error"};
+        vec1s hdr = {"line", "wavelength", "flux [erg/s/cm2]", "error", "width [km/s]", "error"};
         file::write_table_hdr(filebase+"_slfit_lines.cat", 18, hdr,
             tlines, llambda, strna_sci(flux), strna_sci(flux_err), strna_sci(width),
             strna_sci(width_err)
@@ -570,11 +570,12 @@ void print_help(const std::map<std::string,line_t>& db) {
         "fit instability issues if some lines are very low S/N and the fitted line widths "
         "diverge to unreasonable values. The default is to let each width vary freely and "
         "independently in the fit.");
-    bullet("fix_width=...", "Must be a line width (in km/s). If provided, the program will "
-        "force the line widths to be equal to this value for all the lines. This can help "
-        "solving fit instability issues if some lines are very low S/N and the fitted line "
-        "widths diverge to unreasonable values. The default is to let each width vary "
-        "freely in the fit.");
+    bullet("fix_width=...", "Must be a line width (in km/s), defined as the 'sigma' in the "
+        "Gaussian profile (FWHM/2.335). If provided, the program will force the line "
+        "widths to be equal to this value for all the lines. This can help solving fit "
+        "instability issues if some lines are very low S/N and the fitted line widths "
+        "diverge to unreasonable values. The default is to let each width vary freely in "
+        "the fit.");
     bullet("use_mpfit", "Set this flag to use a non-linear fitting approach to fit the line "
         "profiles. This method uses the Levenberg-Marquardt technique to fit non linear "
         "models, which is more flexible and correct since it allows simultaneous fit of "
@@ -597,7 +598,7 @@ void print_help(const std::map<std::string,line_t>& db) {
         "spectrum will be saved into the '*_slfit_model.fits' file as a regular KMOS "
         "spectrum: the first extension is empty, the second contains the flux.");
     bullet("outdir", "Name of the directory into which the output files should be created. "
-        "Default is the current directory..");
+        "Default is the current directory.");
     bullet("ascii", "Set this flag if you want the output catalog to be saved in ASCII "
         "format rather than FITS. In this case, the lines and their fluxes will be saved "
         "in the '*_slfit_lines.cat' file, while the redshift probability distribution "

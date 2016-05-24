@@ -1,40 +1,8 @@
 #include <phypp.hpp>
 
-template<std::size_t Dim, typename Type, typename TypeW>
-rtype_t<Type> cs_inplace_weighted_median(vec<Dim,Type>& v, const vec<Dim,TypeW>& w) {
-    phypp_check(!v.empty(), "cannot find the weighted median of an empty vector");
-    phypp_check(v.dims == w.dims, "incompatible dimensions between vector and weights "
-        "(", v.dims, " vs. ", w.dims, ")");
-
-    inplace_sort(v);
-
-    rtype_t<TypeW> totw = 0;
-    for (uint_t i : range(v)) {
-        if (is_finite(v.safe[i]) && is_finite(w.safe[i])) totw += w.safe[i];
-    }
-
-    rtype_t<TypeW> tot = 0;
-    for (uint_t i : range(v)) {
-        if (is_finite(v.safe[i]) && is_finite(w.safe[i])) {
-            tot += w.safe[i];
-            if (tot > totw/2) {
-                if (i == 0) return v.safe[i];
-                else        return v.safe[i-1];
-            }
-        }
-    }
-
-    return dnan;
-}
-
-template<std::size_t Dim, typename Type, typename TypeW>
-rtype_t<Type> cs_weighted_median(vec<Dim,Type> v, const vec<Dim,TypeW>& w) {
-    return cs_inplace_weighted_median(v, w);
-}
-
 void print_help();
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     if (argc < 2) {
         print_help();
         return 0;
@@ -66,7 +34,7 @@ int main(int argc, char* argv[]) {
         for (uint_t l : range(cflx.dims[0])) {
             uint_t l0 = max(0, int_t(l)-int_t(continuum_width/2));
             uint_t l1 = min(cflx.dims[0]-1, int_t(l)+int_t(continuum_width/2));
-            cflx(l,y,x) -= cs_weighted_median(tflx[l0-_-l1], twei[l0-_-l1]);
+            cflx(l,y,x) -= weighted_median(tflx[l0-_-l1], twei[l0-_-l1]);
         }
     }
 

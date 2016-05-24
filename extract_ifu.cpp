@@ -1,6 +1,6 @@
 #include <phypp.hpp>
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     if (argc < 2) {
         print("usage: extract_ifu <file> names=[...]");
         return 0;

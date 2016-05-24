@@ -2,7 +2,7 @@
 
 void print_help();
 
-int main(int argc, char* argv[]) {
+int phypp_main(int argc, char* argv[]) {
     // If too few arguments provided, print usage and exit
     if (argc < 3) {
         print_help();
