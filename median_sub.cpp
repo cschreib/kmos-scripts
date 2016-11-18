@@ -12,7 +12,7 @@ int phypp_main(int argc, char* argv[]) {
     vec1d ra, dec, size;
     if (argc > 2) {
         vec1s id;
-        file::read_table(argv[2], file::find_skip(argv[2]), id, ra, dec, size);
+        ascii::read_table(argv[2], ascii::find_skip(argv[2]), id, ra, dec, size);
     }
 
     auto ksigma = [](vec1d data) {
@@ -40,12 +40,12 @@ int phypp_main(int argc, char* argv[]) {
 
             // Mask nearby sources from the provided catalog (if any)
             if (!ra.empty()) {
-                fits::wcs astro(fimg.read_header());
+                astro::wcs w(fimg.read_header());
                 vec1d x, y;
-                fits::ad2xy(astro, ra, dec, x, y);
+                astro::ad2xy(w, ra, dec, x, y);
                 x -= 1.0; y -= 1.0;
                 double aspix;
-                fits::get_pixel_size(astro, aspix);
+                astro::get_pixel_size(w, aspix);
                 vec1d r = size/aspix;
 
                 vec2d ix = generate_img(mask.dims, [](int_t,    int_t tx) { return tx; });

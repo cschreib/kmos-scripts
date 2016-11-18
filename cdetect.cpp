@@ -603,7 +603,7 @@ int phypp_main(int argc, char* argv[]) {
     fseg.close();
 
     vec1d ra, dec;
-    fits::xy2ad(fits::wcs(fimg.read_header()), x+1, y+1, ra, dec);
+    astro::xy2ad(astro::wcs(fimg.read_header()), x+1, y+1, ra, dec);
 
     std::string lambda_name = (frequency ? "frequency" : "lambda");
     std::string lpix_name = (frequency ? "fpix" : "lpix");
@@ -627,8 +627,8 @@ int phypp_main(int argc, char* argv[]) {
 
         vec1s slambda = (frequency ? strna_sci(3e14/lambda) : strna(lambda));
 
-        file::write_table_hdr(ofilebase+"_cat.cat", 18, hdr,
-            id, x, y, ra, dec, npix, slambda, lpix, strna_sci(flux), strna_sci(flux_err)
+        ascii::write_table_hdr(ofilebase+"_cat.cat", 18, hdr,
+            id, x, y, ra, dec, npix, slambda, lpix, strna_sci(flux), strna_sci(flux_err), flux/flux_err
         );
     } else {
         fits::write_table(ofilebase+"_cat.fits", ftable(
@@ -1001,7 +1001,7 @@ int phypp_main(int argc, char* argv[]) {
         sl  = "  "+align_left(sl, max(length(sl)));
         hdr[6] = "  "+align_left(hdr[6], sl[0].size()-2);
 
-        file::write_table_hdr(ofilebase+"_gcat.cat", 0,
+        ascii::write_table_hdr(ofilebase+"_gcat.cat", 0,
             hdr, sq1, sq2, sfm, sdv, sz, sdz, sl
         );
     } else {

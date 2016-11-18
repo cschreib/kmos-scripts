@@ -22,7 +22,7 @@ int phypp_main(int argc, char* argv[]) {
     std::string scis = argv[1];
 
     vec1d cent_ra, cent_dec;
-    file::read_table("centroid_helper.txt", 0, cent_ra, cent_dec);
+    ascii::read_table("centroid_helper.txt", 0, cent_ra, cent_dec);
 
     vec1u ids = uindgen(cent_ra.size())+1;
     vec1u idex = where(is_any_of(ids, exclude));
@@ -76,8 +76,7 @@ int phypp_main(int argc, char* argv[]) {
                 // NB: assumes the rotation is the same for all exposures,
                 // which is anyway what kmos_combine does later on.
                 fcubes.reach_hdu(ida[0]+1);
-                fits::wcs astro(fcubes.read_header());
-                fits::ad2xy(astro, cent_ra, cent_dec, x0, y0);
+                astro::ad2xy(astro::wcs(fcubes.read_header()), cent_ra, cent_dec, x0, y0);
             }
         }
 
@@ -105,7 +104,7 @@ int phypp_main(int argc, char* argv[]) {
 
         if (file::exists(dir+"helpers/shifts.txt")) {
             vec1d tx, ty;
-            file::read_table(dir+"helpers/shifts.txt", 0, tx, ty);
+            ascii::read_table(dir+"helpers/shifts.txt", 0, tx, ty);
             for (uint_t j : range(tx)) {
                 shx.push_back(dox+tx[j]);
                 shy.push_back(doy+ty[j]);
@@ -124,7 +123,7 @@ int phypp_main(int argc, char* argv[]) {
     shx = truncate_decimals(shx, 2);
     shy = truncate_decimals(shy, 2);
 
-    file::write_table("shifts.txt", 10, shx, shy);
+    ascii::write_table("shifts.txt", 10, shx, shy);
 
     return 0;
 }
