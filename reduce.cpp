@@ -29,7 +29,37 @@ int phypp_main(int argc, char* argv[]) {
     std::string grating;
     vec1s options;
     vec1s helpers;
-    read_args(argc-2, argv+2, arg_list(calib, stdstar, grating, helpers, options));
+    std::string pipeline_version_str;
+    read_args(argc-2, argv+2, arg_list(
+        calib, stdstar, grating, helpers, options, name(pipeline_version_str, "pipeline_version")
+    ));
+
+    // Read pipeline version (default 1.3.19)
+    uint_t pipeline_version = 1;
+    float  pipeline_version_rev = 3.19;
+    if (!pipeline_version_str.empty()) {
+        vec1s spl = split(pipeline_version_str, ".");
+        if (spl.size() != 3) {
+            error("pipeline version must be of the form 'x.y.z' (got '", pipeline_version_str, "')");
+            return 1;
+        }
+
+        uint_t pipeline_version_major, pipeline_version_minor;
+        if (!from_string(spl[0], pipeline_version) ||
+            !from_string(spl[1], pipeline_version_major) ||
+            !from_string(spl[1], pipeline_version_minor)) {
+            error("failed to read pipeline version from '", pipeline_version_str, "'");
+            return 1;
+        }
+
+        pipeline_version_rev = pipeline_version_major;
+        pipeline_version_rev += pipeline_version_minor*e10(-log10(pipeline_version_minor));
+    }
+
+    if (pipeline_version != 1 && pipeline_version_rev < 3.0) {
+        error("this script was built for pipeline versions 1.x.y, with x > 3");
+        return 1;
+    }
 
     // Extract 'simple' band ID from the grating: HKHKHK -> HK
     std::string band = tolower(grating.substr(0, grating.size()/3));
@@ -127,7 +157,11 @@ int phypp_main(int argc, char* argv[]) {
             error("cannot proceed");
             return 1;
         }
-        sof << "badpixel_dark.fits BADPIXEL_DARK\n";
+        if (pipeline_version_rev >= 3.19) {
+            sof << "BADPIXEL_DARK.fits BADPIXEL_DARK\n";
+        } else {
+            sof << "badpixel_dark.fits BADPIXEL_DARK\n";
+        }
         sof.close();
 
         main_file << "# FLAT\n";
@@ -147,9 +181,15 @@ int phypp_main(int argc, char* argv[]) {
         sof << kmos_calib_dir+"kmos_wave_ref_table.fits REF_LINES\n";
         sof << kmos_calib_dir+"kmos_wave_band.fits      WAVE_BAND\n";
         sof << kmos_calib_dir+"kmos_ar_ne_list_"+band+".fits  ARC_LIST\n";
-        sof << "flat_edge_"+grating+".fits FLAT_EDGE\n";
-        sof << "xcal_"+grating+".fits      XCAL\n";
-        sof << "ycal_"+grating+".fits      YCAL\n";
+        if (pipeline_version_rev >= 3.19) {
+            sof << "FLAT_EDGE_"+grating+".fits FLAT_EDGE\n";
+            sof << "XCAL_"+grating+".fits      XCAL\n";
+            sof << "YCAL_"+grating+".fits      YCAL\n";
+        } else {
+            sof << "flat_edge_"+grating+".fits FLAT_EDGE\n";
+            sof << "xcal_"+grating+".fits      XCAL\n";
+            sof << "ycal_"+grating+".fits      YCAL\n";
+        }
         sof.close();
 
         main_file << "# WAVE_CAL\n";
@@ -164,12 +204,21 @@ int phypp_main(int argc, char* argv[]) {
             file::remove("illum.sof");
         } else {
             sof << kmos_calib_dir+"kmos_wave_band.fits WAVE_BAND\n";
-            sof << "master_dark.fits        MASTER_DARK\n";
-            sof << "master_flat_"+grating+".fits MASTER_FLAT\n";
-            sof << "xcal_"+grating+".fits        XCAL\n";
-            sof << "ycal_"+grating+".fits        YCAL\n";
-            sof << "lcal_"+grating+".fits        LCAL\n";
-            sof << "flat_edge_"+grating+".fits   FLAT_EDGE\n";
+            if (pipeline_version_rev >= 3.19) {
+                sof << "MASTER_DARK.fits        MASTER_DARK\n";
+                sof << "MASTER_FLAT_"+grating+".fits MASTER_FLAT\n";
+                sof << "XCAL_"+grating+".fits        XCAL\n";
+                sof << "YCAL_"+grating+".fits        YCAL\n";
+                sof << "LCAL_"+grating+".fits        LCAL\n";
+                sof << "FLAT_EDGE_"+grating+".fits   FLAT_EDGE\n";
+            } else {
+                sof << "master_dark.fits        MASTER_DARK\n";
+                sof << "master_flat_"+grating+".fits MASTER_FLAT\n";
+                sof << "xcal_"+grating+".fits        XCAL\n";
+                sof << "ycal_"+grating+".fits        YCAL\n";
+                sof << "lcal_"+grating+".fits        LCAL\n";
+                sof << "flat_edge_"+grating+".fits   FLAT_EDGE\n";
+            }
             sof.close();
 
             main_file << "# ILLUM\n";
@@ -201,10 +250,18 @@ int phypp_main(int argc, char* argv[]) {
         }
 
         auto add_calib = [&](std::ofstream& file) {
-            vec1s calfiles = {"xcal_"+grating+".fits", "ycal_"+grating+".fits",
-                "lcal_"+grating+".fits", "master_flat_"+grating+".fits",
-                "illum_corr_"+grating+".fits"};
+            vec1s calfiles = {"xcal_"+grating, "ycal_"+grating,
+                "lcal_"+grating, "master_flat_"+grating,
+                "illum_corr_"+grating};
+
+            if (pipeline_version_rev >= 3.19) {
+                calfiles = toupper(calfiles);
+            }
+
+            calfiles += ".fits";
+
             vec1s calcat = {"XCAL", "YCAL", "LCAL", "MASTER_FLAT", "ILLUM_CORR"};
+            vec1b required = {true, true,   true,   true,          false};
             vec1b found = replicate(false, calfiles.size());
             for (auto& c : calib) {
                 vec1u idb = where(!found);
@@ -222,8 +279,16 @@ int phypp_main(int argc, char* argv[]) {
                 }
             }
 
-            if (count(!found) != 0) {
-                error("missing calibration files:");
+            if (count(!found && !required) != 0) {
+                warning("missing optional calibration files:");
+                vec1u idb = where(!found);
+                for (auto& f : calfiles[idb]) {
+                    warning(" - ", f);
+                }
+            }
+
+            if (count(!found && required) != 0) {
+                error("missing mandatory calibration files:");
                 vec1u idb = where(!found);
                 for (auto& f : calfiles[idb]) {
                     error(" - ", f);
@@ -274,9 +339,15 @@ int phypp_main(int argc, char* argv[]) {
             add_stop_fail(main_file);
 
             // We add an extra step to strip the empty IFUs from the image file
-            main_file << "esorex  --log-file=esorex_strip.log kmo_fits_strip -empty std_image_"
-                << grating << ".fits\n";
-            main_file << "mv strip.fits std_image_" << grating << ".fits\n";
+            if (pipeline_version_rev >= 3.19) {
+                // main_file << "esorex  --log-file=esorex_strip.log kmo_fits_strip -empty STD_IMAGE_"
+                //     << grating << ".fits\n";
+                // main_file << "mv strip.fits STD_IMAGE_" << grating << ".fits\n";
+            } else {
+                main_file << "esorex  --log-file=esorex_strip.log kmo_fits_strip -empty std_image_"
+                    << grating << ".fits\n";
+                main_file << "mv strip.fits std_image_" << grating << ".fits\n";
+            }
         } else if (task == "sci") {
             print("prepare reduction of science frames in ", raw_dir);
 
@@ -292,12 +363,17 @@ int phypp_main(int argc, char* argv[]) {
                 return 1;
             }
             if (!stdstar.empty()) {
-                if (!file::exists(stdstar+"telluric_"+grating+".fits")) {
-                    error("missing standard star calibration ("+stdstar+
-                        "telluric_"+grating+".fits)");
+                std::string telluric;
+                if (pipeline_version_rev >= 3.19) {
+                    telluric = stdstar+"TELLURIC_"+grating+".fits";
+                } else {
+                    telluric = stdstar+"telluric_"+grating+".fits";
+                }
+                if (!file::exists(telluric)) {
+                    error("missing standard star calibration ("+telluric+")");
                     return 1;
                 }
-                sof << stdstar+"telluric_"+grating+".fits TELLURIC\n";
+                sof << telluric+" TELLURIC\n";
             }
             sof.close();
 
@@ -345,8 +421,12 @@ int phypp_main(int argc, char* argv[]) {
 
             main_file << "# Dither " << i+1 << "\n";
             main_file << "esorex kmo_make_image cont" << i+1 << ".sof\n";
-            main_file << "mv make_image.fits " << out_file << "\n";
-            main_file << "../../extract_ifu " << out_file << " names=[" <<
+            if (pipeline_version_rev >= 3.19) {
+                main_file << "mv MAKE_IMAGE.fits " << out_file << "\n";
+            } else {
+                main_file << "mv make_image.fits " << out_file << "\n";
+            }
+            main_file << "${KMOS_SCRIPTS_DIR}/extract_ifu " << out_file << " names=[" <<
                 collapse(helpers, ",") << "]\n";
             main_file << "rm " << out_file << "\n\n";
         }
@@ -355,19 +435,30 @@ int phypp_main(int argc, char* argv[]) {
 
         for (std::string helper : helpers) {
             sof.open("image"+helper+".sof");
-            sof << "combine_sci_reconstructed_" << tolower(helper) << ".fits COMMAND_LINE\n";
+            if (pipeline_version_rev >= 3.19) {
+                sof << "COMBINE_SCI_RECONSTRUCTED_" << helper << ".fits COMMAND_LINE\n";
+            } else {
+                sof << "combine_sci_reconstructed_" << helper << ".fits COMMAND_LINE\n";
+            }
             sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits COMMAND_LINE\n";
             sof.close();
 
             main_file << "# Full " << helper << "\n";
-            main_file << "esorex --log-file=esorex_combine_" << tolower(helper) <<
+            main_file << "esorex --log-file=esorex_combine_" << helper <<
                 ".log kmos_combine -method='header' -cmethod='median' "
                 "-name='" << toupper(helper) << "' combine.sof\n";
             main_file << "esorex kmo_make_image image"+helper+".sof\n";
-            main_file << "rm combine_sci_reconstructed_" << tolower(helper) << ".fits\n";
-            main_file << "rm exp_mask_sci_reconstructed_" << tolower(helper) << ".fits\n";
-            main_file << "mv make_image.fits combine_sci_reconstructed_" << tolower(helper)
-                << "_img_cont.fits\n\n";
+            if (pipeline_version_rev >= 3.19) {
+                main_file << "rm COMBINE_SCI_RECONSTRUCTED_" << helper << ".fits\n";
+                main_file << "rm EXP_MASK_SCI_RECONSTRUCTED_" << helper << ".fits\n";
+                main_file << "mv MAKE_IMAGE.fits COMBINE_SCI_RECONSTRUCTED_" << helper
+                    << "_img_cont.fits\n\n";
+            } else {
+                main_file << "rm combine_sci_reconstructed_" << helper << ".fits\n";
+                main_file << "rm exp_mask_sci_reconstructed_" << helper << ".fits\n";
+                main_file << "mv make_image.fits combine_sci_reconstructed_" << helper
+                    << "_img_cont.fits\n\n";
+            }
         }
     } else if (task == "combine") {
         // --------------------------------------------
@@ -387,7 +478,12 @@ int phypp_main(int argc, char* argv[]) {
         vec1s files;
 
         for (auto& d : dirs) {
-            vec1s tf = file::list_files(base_dir+d+"/sci_reconstructed_*-sci.fits");
+            vec1s tf;
+            if (pipeline_version_rev >= 3.19) {
+                tf = file::list_files(base_dir+d+"/SCI_RECONSTRUCTED_*-sci.fits");
+            } else {
+                tf = file::list_files(base_dir+d+"/sci_reconstructed_*-sci.fits");
+            }
             inplace_sort(tf);
             append(files, base_dir+d+"/"+tf);
         }
@@ -401,7 +497,11 @@ int phypp_main(int argc, char* argv[]) {
         main_file << "# COMBINE\n";
         main_file << "esorex  --log-file=esorex_combine.log kmos_combine -edge_nan -method='header' combine.sof\n";
         add_stop_fail(main_file);
-        main_file << "for f in combine*.fits; do echo $f; ../fill_nan $f; done\n";
+        if (pipeline_version_rev >= 3.19) {
+            main_file << "for f in COMBINE*.fits; do echo $f; ${KMOS_SCRIPTS_DIR}/fill_nan $f; done\n";
+        } else {
+            main_file << "for f in combine*.fits; do echo $f; ${KMOS_SCRIPTS_DIR}/fill_nan $f; done\n";
+        }
     } else if (task == "collapse") {
         // --------------------------------------------
         // Obtain continuum images of all science targets
@@ -414,16 +514,19 @@ int phypp_main(int argc, char* argv[]) {
             return 1;
         }
 
-        vec1s cubes = raw_dir+file::list_files(raw_dir+"combine_sci_reconstructed_*.fits");
+        std::string prefix;
+        if (pipeline_version_rev >= 3.19) {
+            prefix = "COMBINE_SCI_RECONSTRUCTED_";
+        } else {
+            prefix = "combine_sci_reconstructed_";
+        }
+
+        vec1s cubes = raw_dir+file::list_files(raw_dir+prefix+"*.fits");
         inplace_sort(cubes);
 
         for (uint_t i : range(cubes)) {
-            std::string out_file = file::remove_extension(file::get_basename(cubes[i]))+
-                "_img_cont.fits";
-
-            std::string sid = erase_begin(
-                erase_end(out_file, "_img_cont.fits"),
-                "combine_sci_reconstructed_");
+            std::string out_file = file::remove_extension(file::get_basename(cubes[i]))+"_img_cont.fits";
+            std::string sid = erase_begin(erase_end(out_file, "_img_cont.fits"), prefix);
 
             sof.open("cont_"+sid+".sof");
             sof << cubes[i] << " COMMAND_LINE\n";
@@ -432,7 +535,11 @@ int phypp_main(int argc, char* argv[]) {
 
             main_file << "# " << sid << "\n";
             main_file << "esorex kmo_make_image -cmethod='median' cont_" << sid << ".sof\n";
-            main_file << "mv make_image.fits " << out_file << "\n\n";
+            if (pipeline_version_rev >= 3.19) {
+                main_file << "mv MAKE_IMAGE.fits " << out_file << "\n\n";
+            } else {
+                main_file << "mv make_image.fits " << out_file << "\n\n";
+            }
         }
     } else {
         error("unknown task '", task, "'");
@@ -517,5 +624,10 @@ void print_help() {
         "additional options you wish to pass to the pipeline for the reduction. These "
         "options may not contain commas (,) or quotes (\"). If they contain spaces, be "
         "sure to write the parameter as: options=\"[-option1=foo, -option2='foo bar'].\"");
+    bullet("pipeline_version=...", "Optional, available for all tasks. This parameter "
+        "allows you to specify which version of the KMOS pipeline you have installed "
+        "on your computer. The reduction scripts sometimes need to be adjusted depending "
+        "on which version you are running, e.g., because the names of the intermediate "
+        "FITS files have changed (which happened between v1.3.17 and v1.3.19).");
     print("");
 }

@@ -8,6 +8,9 @@ int phypp_main(int argc, char* argv[]) {
 
     std::string dir = file::directorize(argv[1]);
     vec1s files = dir+file::list_files(dir+"sci_reconstructed*-sci.fits");
+    if (files.empty()) {
+        files = dir+file::list_files(dir+"SCI_RECONSTRUCTED*-sci.fits");
+    }
 
     vec1d ra, dec, size;
     if (argc > 2) {
