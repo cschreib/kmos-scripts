@@ -623,7 +623,7 @@ int phypp_main(int argc, char* argv[]) {
 
     if (ascii) {
         vec1s hdr = {"ID", "x", "y", "RA [deg]", "Dec [deg]", "Npix",
-            lambda_name+" "+lambda_unit, lambda_name+" [pix]", flux_unit, "error"};
+            lambda_name+" "+lambda_unit, lambda_name+" [pix]", flux_unit, "error", "SNR"};
 
         vec1s slambda = (frequency ? strna_sci(3e14/lambda) : strna(lambda));
 
