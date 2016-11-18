@@ -40,7 +40,7 @@ int phypp_main(int argc, char* argv[]) {
         if (!fitmask.empty()) {
             fits::read(fitmask, mask);
         } else {
-            mask = replicate(1, flx.dims[1], flx.dims[2]);
+            mask = vec2d{partial_count(0, is_finite(flx)) > 1};
         }
     }
 
@@ -88,7 +88,7 @@ int phypp_main(int argc, char* argv[]) {
     vec2d flx1d(flx.dims[0], nmodel);
     vec2d err1d(flx.dims[0], nmodel);
     for (uint_t l : range(flx.dims[0])) {
-        vec1u idg = where(is_finite(flx(l,_,_)) && is_finite(err(l,_,_)) && mask > 0.0);
+        vec1u idg = where(is_finite(flx(l,_,_)) && is_finite(err(l,_,_)) && err(l,_,_) > 0 && mask > 0.0);
         auto res = linfit_pack(flx(l,_,_)[idg], err(l,_,_)[idg], models(_,idg));
         flx1d(l,_) = res.params;
         err1d(l,_) = res.errors;
