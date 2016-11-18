@@ -50,13 +50,15 @@ int phypp_main(int argc, char* argv[]) {
         fits::input_image fmodel(argv[2]);
         if (fmodel.axis_count() == 2) {
             nmodel = 1;
+            fits::read(argv[2], models);
+            models = reform(models, 1, models.size());
+        } else {
+            vec3d tmp;
+            fits::read(argv[2], tmp);
 
+            nmodel = tmp.dims[0];
+            models = reform(tmp, nmodel, tmp.dims[1]*tmp.dims[2]);
         }
-        vec3d tmp;
-        fits::read(argv[2], tmp);
-
-        nmodel = tmp.dims[0];
-        models = reform(tmp, nmodel, tmp.dims[1]*tmp.dims[2]);
 
         // Make sure each model has unit integral
         for (uint_t i : range(nmodel)) {
@@ -64,7 +66,7 @@ int phypp_main(int argc, char* argv[]) {
             models(i,_) /= total(models(i,_)[idg]);
         }
 
-        if (suffix.size() != nmodel) {
+        if (suffix.size() != nmodel && nmodel != 1) {
             error("please provide as many suffixes as there are models (", nmodel,
                 ") in suffix=[...]");
             return 1;
