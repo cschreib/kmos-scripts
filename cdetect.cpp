@@ -962,7 +962,7 @@ int phypp_main(int argc, char* argv[]) {
                 sl  = "  "+align_left(sl, max(length(sl)));
                 hdr[6] = "  "+align_left(hdr[6], sl[0].size()-2);
 
-                file::write_table_hdr(ofilebase+"_gcat_"+strn(ig+1)+".cat", 0,
+                ascii::write_table_hdr(ofilebase+"_gcat_"+strn(ig+1)+".cat", 0,
                     hdr, sq1, sq2, sfm, sdv, sz, sdz, sl
                 );
             } else {
