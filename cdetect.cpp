@@ -71,7 +71,8 @@ int phypp_main(int argc, char* argv[]) {
     uint_t lambda_pad = 5;
     vec1d zhint;
     double maxdv = 200.0;
-    double maxdist = 5;
+    double maxdpos = 5;
+    double maxdist = 4;
     double qflag2_snr_threshold = 5.0;
     bool disable_zsearch = false;
     uint_t minqflag = 0;
@@ -82,9 +83,9 @@ int phypp_main(int argc, char* argv[]) {
     std::string semethod = "stddevneg";
 
     read_args(argc-1, argv+1, arg_list(expmap, minexp, spatial_smooth, save_cubes,
-        snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdist, single_source,
+        snr_det, snr_source, verbose, spectral_bin, zhint, maxdv, maxdpos, single_source,
         qflag2_snr_threshold, minqflag, error_scale, outdir, ascii, disable_zsearch,
-        lambda_pad, lines, name(semethod, "emethod")
+        lambda_pad, lines, name(semethod, "emethod"), maxdist
     ));
 
     if (!outdir.empty()) {
@@ -514,12 +515,19 @@ int phypp_main(int argc, char* argv[]) {
     vec1d flux_err;
 
     vec2u cseg(cube.dims[1], cube.dims[2]);
+    double hsize = cube.dims[1]/2;
+    vec2b is_central;
+    if (is_finite(maxdist)) {
+        is_central = sqr(cx - hsize) + sqr(cy - hsize) < sqr(maxdist);
+    } else {
+        is_central = replicate(true, cseg.dims);
+    }
 
     if (verbose) note("finding and segmenting detections...");
     for (uint_t l : range(nlam)) {
         // Flag pixels above the S/N threshold
         vec2d snr = cube(l,_,_)/err(l,_,_);
-        vec2u det = vec2u(snr > snr_det);
+        vec2u det = vec2u(snr > snr_det && is_central);
 
         cseg += det;
 
@@ -649,12 +657,12 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     while (true) {
-        // First compute the nearest neighbors between groups, within 'maxdist'
+        // First compute the nearest neighbors between groups, within 'maxdpos'
         vec1d dg = replicate(dinf, xg.size());
         for (uint_t i : range(xg))
         for (uint_t j : range(i+1, xg.size())) {
             double d = sqr(xg[j]-xg[i]) + sqr(yg[j]-yg[i]);
-            if (single_source || (d < sqr(maxdist) && d < dg[i] && d < dg[j])) {
+            if (single_source || (d < sqr(maxdpos) && d < dg[i] && d < dg[j])) {
                 group[j] = group[i];
                 dg[j] = dg[i] = d;
             }
@@ -1243,6 +1251,11 @@ void print_help(const std::map<std::string,line_t>& db) {
         "recommended to use this option and flag out the regions with only a handful of "
         "exposures, where strong outliers can be found (cosmic rays, detector hot pixels, "
         "etc).");
+    bullet("maxdist=...", "Must be a number. It defines the maximum distance from the IFU "
+        "center for a detection (in pixels). All detections further than this distance will "
+        "be discarded. This helps removing spurious detections, assuming the IFU was well "
+        "centered on the target and assuming that the line emission is not substantially "
+        "shifted from the center of mass of the target. Default is 3 pixels.");
     bullet("emethod=...", "Must be a string. It defines the method used to estimate the "
         "uncertainty on each pixel in the cube. Possible values are the following. "
         "'pipeline': use the uncertainty estimated by the KMOS pipeline, which is "
@@ -1291,7 +1304,7 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("disable_zsearch", "Set this flag to skip the redshift identification step "
         "and only list the spectral detections. You would typically set this flag on if "
         "you are looking for continuum emission.");
-    bullet("maxdist=...", "Must be a number. It defines the maximum distance on the sky (in "
+    bullet("maxdpos=...", "Must be a number. It defines the maximum distance on the sky (in "
         "pixels) between two spectral sources to be considered as part of the same "
         "object. Default is 5 pixels, which is fairly generous. You may want to decrease "
         "this value if you know that your sources are very compact and that there should "
@@ -1299,7 +1312,7 @@ void print_help(const std::map<std::string,line_t>& db) {
         "happen, e.g., if there is a cloud of outflowing gas). Using a too large value "
         "will lead to more spurious associations of noise fluctuations.");
     bullet("single_source", "Set this flag if you want all the spectral detections to be "
-        "associated to a unique source (this is equivalent to choosing 'maxdist' to a "
+        "associated to a unique source (this is equivalent to choosing 'maxdpos' to a "
         "value larger than the size of the IFU).");
     bullet("zhint=[...]", "Must be a vector of two numbers. It defines the allowed redshift "
         "range when searching for line emission. The first number is the lowest redshift "
