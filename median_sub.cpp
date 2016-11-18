@@ -2,7 +2,7 @@
 
 int phypp_main(int argc, char* argv[]) {
     if (argc < 2) {
-        print("usage: median_sub <directory> <mask_catalog>");
+        print("usage: median_sub <directory> [options]");
         return 0;
     }
 
@@ -12,10 +12,14 @@ int phypp_main(int argc, char* argv[]) {
         files = dir+file::list_files(dir+"SCI_RECONSTRUCTED*-sci.fits");
     }
 
+    bool mask_center = false;
+    double mask_radius = 0.5; // arcsec
+    std::string masks;
+    read_args(argc-1, argv+1, arg_list(mask_center, masks, mask_radius));
+
     vec1d ra, dec, size;
-    if (argc > 2) {
-        vec1s id;
-        ascii::read_table(argv[2], ascii::find_skip(argv[2]), id, ra, dec, size);
+    if (!masks.empty()) {
+        ascii::read_table(masks, ascii::find_skip(masks), _, ra, dec, size);
     }
 
     auto ksigma = [](vec1d data) {
@@ -47,8 +51,12 @@ int phypp_main(int argc, char* argv[]) {
                 vec1d x, y;
                 astro::ad2xy(w, ra, dec, x, y);
                 x -= 1.0; y -= 1.0;
-                double aspix;
-                astro::get_pixel_size(w, aspix);
+                double aspix = 1.0;
+                if (!astro::get_pixel_size(w, aspix)) {
+                    error("could not read pixel size from cube");
+                    return 1;
+                }
+
                 vec1d r = size/aspix;
 
                 vec2d ix = generate_img(mask.dims, [](int_t,    int_t tx) { return tx; });
@@ -57,6 +65,18 @@ int phypp_main(int argc, char* argv[]) {
                 for (uint_t s : range(ra)) {
                     mask = mask && sqr(x[s] - ix) + sqr(y[s] - iy) > sqr(r[s]);
                 }
+            } else if (mask_center) {
+                astro::wcs w(fimg.read_header());
+                double aspix = 1.0;
+                if (!astro::get_pixel_size(w, aspix)) {
+                    error("could not read pixel size from cube");
+                    return 1;
+                }
+
+                vec2d ix = generate_img(mask.dims, [](int_t,    int_t tx) { return tx; });
+                vec2d iy = generate_img(mask.dims, [](int_t ty, int_t)    { return ty; });
+
+                mask = mask && sqr(nx/2 - ix) + sqr(ny/2 - iy) > sqr(mask_radius/aspix);
             }
 
             // Mask borders
