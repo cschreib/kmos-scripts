@@ -43,6 +43,9 @@ int phypp_main(int argc, char* argv[]) {
         print(dir);
 
         vec1s files = dir+file::list_files(dir+"sci_reconstructed*-sci.fits");
+        if (files.empty()) {
+            files = dir+file::list_files(dir+"SCI_RECONSTRUCTED*-sci.fits");
+        }
         inplace_sort(files);
 
         // Find out which exposures contain the helper target from which the
