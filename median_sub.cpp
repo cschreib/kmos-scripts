@@ -36,6 +36,8 @@ int phypp_main(int argc, char* argv[]) {
         for (uint_t i : range(1, fimg.hdu_count())) {
             fimg.reach_hdu(i);
             if (fimg.axis_count() != 3) continue;
+            std::string extname;
+            if (fimg.read_keyword("EXTNAME", extname) && end_with(extname, ".NOISE")) continue;
 
             vec3d cube;
             fimg.read(cube);
