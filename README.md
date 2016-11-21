@@ -683,7 +683,7 @@ Once you have extracted the spectrum of one of you object, regardless of the met
 
 To do so, you can use the `slinefit` program provided in this package. The way it works is very simple: you give it a redshift window to search in, say z=2.2 to z=2.6, and the lines you expect to detect, say [OIII] and Halpha. The program will then generate a fine grid of redshifts within the chosen interval, and will try to fit the redshifted lines on the spectrum for each redshift of the grid. The redshift that provides the smallest chi2 will be chosen as the redshift of your source. In the fit, both the flux of the lines and their velocity dispersion (i.e., the width) are varied, and lines can be organized in groups with fixed ratios (e.g., if you know, that [OIII]5007 and [OIII]4959 always have the same flux ratio).
 
-Note an important fact: for the sake of simplicity, the program does not deal with continuum emission, so if you think your target can have non-negligible continuum flux in the spectrum, you should re-extract the spectrum on a continuum-subtracted cube before attempting to fit the lines.
+Optionally, the program can also deal with continuum emission. In addition to fitting the lines, it will also fit a linear combination of typical galaxy templates (the same as in EAzY, by G. Brammer, just with higher spectral resolution).
 
 Below is a short overview of the main features of the program.
 
@@ -694,16 +694,20 @@ cphy++ optimize slinefit.cpp
 
 2) The simplest way to use this program is the following:
 ```bash
-./slinefit combine_sci_reconstructed_xxx_spec.fits z0=2.5 dz=0.3 lines=[hbeta,o3,halpha,n2] verbose
+./slinefit combine_sci_reconstructed_xxx_spec.fits z0=2.5 dz=0.3 lines=[em_hbeta,em_o3_5007,em_halpha,em_n2_6583] verbose
 ```
 
-In `lines=[...]` you can list as many lines as you wish, in whatever order, provided that they exist in the line data base of the program. Currently there are very few lines in this data base, and only the most common ones are listed. If needed, you can add new lines yourself quite easily without having to modify the code of the program, there is a special syntax for that. For more information and for the list of lines in the data base, please look at the embedded help of the program, which you can see by just calling `./slinefit` without arguments.
+In `lines=[...]` you can list as many lines as you wish, in whatever order, provided that they exist in the line database of the program. This database is fairly complete, but if needed you can add new lines yourself quite easily without having to modify the code of the program, there is a special syntax for that. For more information and for the list of lines in the database, please look at the embedded help of the program, which you can see by just calling `./slinefit` without arguments.
 
-3) By default, line widths will be allowed to vary between 50 and 500 km/s, to ensure that the fit does not diverge towards unrealistic line profiles. You can tweak these values with the `width_min` and `width_max` parameters. If one of your line is fit with a width equal to `width_min`, that probably means the line is spectrally unresolved, and you should not worry about it. However, if the line is fit with a width equal to `width_max`, then there is probably something wrong: double check the fit! If you do not want the line width to vary, you can impose a fixed value using the `fix_width` parameter. Lastly, as an intermediate solution, you can also choose to use the same line width for all the lines using the `same_width` flag.
+3) By default, line widths will be allowed to vary between 50 and 500 km/s, to ensure that the fit does not diverge towards unrealistic line profiles. You can tweak these values with the `width_min` and `width_max` parameters. If one of your line is fitted with a width equal to `width_min`, that probably means the line is spectrally unresolved, and you should not worry about it. However, if the line is fit with a width equal to `width_max`, then there is probably something wrong: double check the fit! If you do not want the line width to vary, you can impose a fixed value using the `fix_width` parameter. Lastly, as an intermediate solution, you can also choose to use the same line width for all the lines using the `same_width` flag.
 
 4) Once the fit is done, the program will tell you what is the best-fit redshift, and will create a catalog containing the line fluxes and widths, as well as an estimation of the redshift "probability" distribution (inferred from the reduced chi2). By default this catalog is in FITS format, but you can also ask for plain ASCII file using the `ascii` flag, in which case the program will create two files: one for the line fluxes and another for the redshift distribution. If you set the `save_model` flag, it will also output a new spectrum containing the best-fit model spectrum.
 
-5) More details can be obtained by looking at the embedded help:
+5) If you want to also the fit the continuum (which is recommended if you are not sure), set the `fit_continuum_template` option and point the `template_dir` parameter to the `template` folder that is provided with the source codes.
+
+6) Lastly, uncertainties are computed formally from the uncertainty spectrum. This is often not accurate though. Also, the default fit method (the linear fit) will not report uncertainties on the line widths and redshifts. So for any serious work, you should enable the `mc_errors` option which will run a Monte Carlo simulation by repeating the fit a number of times on the spectra, randomly perturbed within the formal uncertainty. This will make the computation much longer though! You can mitigate this by setting the `thread=...` option to run the program on multiple CPUs.
+
+7) More details can be obtained by looking at the embedded help:
 ```bash
 ./slinefit
 ```
