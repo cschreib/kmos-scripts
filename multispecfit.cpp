@@ -12,7 +12,10 @@ int phypp_main(int argc, char* argv[]) {
     std::string fitmask;
     std::string outdir;
     bool residuals = false;
-    read_args(argc-2, argv+2, arg_list(suffix, fitmask, residuals, outdir));
+    bool background = false;
+    uint_t hdu = 1;
+    uint_t error_hdu = 2;
+    read_args(argc-2, argv+2, arg_list(background, suffix, fitmask, residuals, outdir, hdu, error_hdu));
 
     if (!outdir.empty()) {
         outdir = file::directorize(outdir);
@@ -22,18 +25,17 @@ int phypp_main(int argc, char* argv[]) {
     // Read cube
     fits::input_image fimg(argv[1]);
     vec3d flx;
-    fimg.reach_hdu(1);
+    fimg.reach_hdu(hdu);
     fimg.read(flx);
     // Read uncertainty
     vec3d err;
-    fimg.reach_hdu(2);
+    fimg.reach_hdu(error_hdu);
     fimg.read(err);
 
     // Get wavelength WCS
-    double crpix, crval, cdelt;
-    fimg.read_keyword("CRPIX3", crpix);
-    fimg.read_keyword("CRVAL3", crval);
-    fimg.read_keyword("CDELT3", cdelt);
+    fimg.reach_hdu(hdu);
+    astro::wcs wcs(fimg.read_header());
+    vec1d lam = astro::build_axis(wcs, 0, astro::axis_unit::wave_um);
 
     // Read fit mask (optional)
     vec2d mask; {
@@ -58,6 +60,18 @@ int phypp_main(int argc, char* argv[]) {
 
             nmodel = tmp.dims[0];
             models = reform(tmp, nmodel, tmp.dims[1]*tmp.dims[2]);
+        }
+
+        // Add constant background if requested
+        if (background) {
+            append<0>(models, replicate(1.0, 1, models.dims[1]));
+            if (nmodel == 1) {
+                suffix = {"", "background"};
+            } else if (suffix.size() == nmodel) {
+                suffix.push_back("background");
+            }
+
+            ++nmodel;
         }
 
         // Make sure each model has unit integral
@@ -98,17 +112,23 @@ int phypp_main(int argc, char* argv[]) {
     std::string filebase = outdir+file::get_basename(erase_end(argv[1], ".fits"));
     for (uint_t i : range(nmodel)) {
         fits::output_image fspec(filebase+suffix[i]+"_spec.fits");
-        fspec.write(vec1d(0)); // empty primary extension, KMOS convention
+        fspec.write_empty(); // empty primary extension, KMOS convention
+
+        auto write_wcs = [&]() {
+            fspec.write_keyword("CTYPE1", "WAVE");
+            fspec.write_keyword("CUNIT1", "um");
+            fspec.write_keyword("CRPIX1", 1.0);
+            fspec.write_keyword("CRVAL1", lam[0]);
+            fspec.write_keyword("CDELT1", lam[1]-lam[0]);
+        };
+
         fspec.reach_hdu(1);
         fspec.write(flx1d(_,i));
-        fspec.write_keyword("CRPIX1", crpix);
-        fspec.write_keyword("CRVAL1", crval);
-        fspec.write_keyword("CDELT1", cdelt);
+        write_wcs();
+
         fspec.reach_hdu(2);
         fspec.write(err1d(_,i));
-        fspec.write_keyword("CRPIX1", crpix);
-        fspec.write_keyword("CRVAL1", crval);
-        fspec.write_keyword("CDELT1", cdelt);
+        write_wcs();
     }
 
     // Compute residuals if asked
@@ -123,10 +143,12 @@ int phypp_main(int argc, char* argv[]) {
             }
 
             fits::output_image fspec(filebase+suffix[i]+"_residual.fits");
-            fspec.write(vec3d(0,0,0)); // empty primary HDU
+            fspec.write_empty(); // empty primary HDU
+
             fspec.reach_hdu(1);
             fspec.write(res);
             fspec.write_header(hdr);
+
             fspec.reach_hdu(2);
             fspec.write(err);
             fspec.write_header(hdr);
@@ -159,6 +181,12 @@ void print_help() {
     bullet("residuals", "Set this flag if you want the program to generate residual cubes, "
         "removing the contribution of each component separately (default: do not "
         "generate residuals)");
+    bullet("background", "Set this flag if you want the program to fit for a constant background "
+        "level on top of your models (default: no background model). The background spectrum will "
+        "be saved with suffix \"_background\".");
     bullet("outdir", "Name of the directory into which the output files should be created. "
         "Default is the current directory.");
+    bullet("hdu", "Choose from which HDU to read the flux cube (default: HDU 1, first extension).");
+    bullet("error_hdu", "Choose from which HDU to read the error cube (default: HDU 2, second "
+        "extension).");
 }
