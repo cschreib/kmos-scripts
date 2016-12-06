@@ -8,17 +8,23 @@ int phypp_main(int argc, char* argv[]) {
 
     double slit_width = 0.7; // [arcsec]
     bool verbose = false;
+    uint_t hdu = 1;
+    uint_t error_hdu = 2;
+    double center_x = dnan;
+    double center_y = dnan;
     std::string out_file;
 
-    read_args(argc-1, argv+1, arg_list(slit_width, verbose, name(out_file, "out")));
+    read_args(argc-1, argv+1, arg_list(
+        slit_width, verbose, name(out_file, "out"), hdu, error_hdu, center_x, center_y
+    ));
 
     std::string infile = argv[1];
     if (out_file.empty()) {
-        out_file = file::remove_extension(infile)+"_slit.fits";
+        out_file = file::remove_extension(file::get_basename(infile))+"_slit.fits";
     }
 
     fits::input_image fimg(infile);
-    fimg.reach_hdu(1);
+    fimg.reach_hdu(hdu);
 
     // Read wavelength/frequency axis WCS
     uint_t nlam = 0;
@@ -27,7 +33,11 @@ int phypp_main(int argc, char* argv[]) {
     vec1s missing;
     fimg.read_keyword("CUNIT3", cunit); // optional
     if (!fimg.read_keyword("NAXIS3", nlam))  missing.push_back("NAXIS3");
-    if (!fimg.read_keyword("CDELT3", cdelt)) missing.push_back("CDELT3");
+    if (!fimg.read_keyword("CDELT3", cdelt)) {
+        if (!fimg.read_keyword("CD3_3", cdelt)) {
+            missing.push_back("CDELT3 or CD3_3");
+        }
+    }
     if (!fimg.read_keyword("CRPIX3", crpix)) missing.push_back("CRPIX3");
     if (!fimg.read_keyword("CRVAL3", crval)) missing.push_back("CRVAL3");
     if (!missing.empty()) {
@@ -77,20 +87,33 @@ int phypp_main(int argc, char* argv[]) {
     foimg.write_empty();
 
     vec3d flx3d, err3d;
-    fimg.reach_hdu(1);
+    fimg.reach_hdu(hdu);
     fimg.read(flx3d);
-    fimg.reach_hdu(2);
+    fimg.reach_hdu(error_hdu);
     fimg.read(err3d);
 
     uint_t nslit = flx3d.dims[1];
     if (2*navg+1 > flx3d.dims[2]) {
-        error("slit would be larger than data cube (", 2*navg+1, " pixels)");
-        note("please choose a smaller value for 'slit_width' (currently ", slit_width, "\")");
+        error("slit would be larger than data cube (", flx3d.dims[2], " pixels, or ",
+            flx3d.dims[2]*aspix, "\")");
+        note("please choose a smaller value for 'slit_width'");
         return 1;
     }
 
-    uint_t i0 = flx3d.dims[2]/2 - navg;
-    uint_t i1 = flx3d.dims[2]/2 + navg;
+    uint_t i0, i1;
+    if (!is_finite(center_x)) {
+        i0 = flx3d.dims[2]/2 - navg;
+        i1 = flx3d.dims[2]/2 + navg;
+    } else {
+        double cp = round(center_x);
+        if (cp-navg < 0 || cp+navg > flx3d.dims[2]-1) {
+            error("slit position reaches the edge of the data cube");
+            return 1;
+        }
+
+        i0 = uint_t(cp) - navg;
+        i1 = uint_t(cp) + navg;
+    }
 
     vec2d flx2d(nslit, flx3d.dims[0]);
     vec2d err2d(nslit, flx3d.dims[0]);
