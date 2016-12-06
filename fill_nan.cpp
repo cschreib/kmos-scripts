@@ -43,19 +43,9 @@ int phypp_main(int argc, char* argv[]) {
         }
     }
 
-    uint_t nlam = cube.dims[0];
-    double cdelt = 1, crpix = 1, crval = 1;
-    vec1s missing;
-    if (!img.read_keyword("CDELT3", cdelt)) missing.push_back("CDELT3");
-    if (!img.read_keyword("CRPIX3", crpix)) missing.push_back("CRPIX3");
-    if (!img.read_keyword("CRVAL3", crval)) missing.push_back("CRVAL3");
-    if (!missing.empty()) {
-        error("could not read WCS information for wavelength axis");
-        note("missing keyword", missing.size() > 1 ? "s " : " ", collapse(missing, ", "));
-        return 1;
-    }
-
-    vec1d lam = crval + cdelt*(dindgen(nlam) + (1 - crpix));
+    astro::wcs wcs(img.read_header());
+    vec1d lam = astro::build_axis(wcs, 0, astro::axis_unit::wave_um);
+    double cdelt = abs(lam[1]-lam[0]);
 
     vec1b flagged(lam.dims);
     for (uint_t l : range(lines)) {
