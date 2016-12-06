@@ -84,12 +84,16 @@ int phypp_main(int argc, char* argv[]) {
             // Mask borders
             mask(0,_) = mask(ny-1,_) = mask(_,0) = mask(_,nx-1) = false;
 
-            // Subtract whole IFU
+            // Subtract median per wavelength slice
             vec1u idg = where(mask);
             for (uint_t l : range(cube.dims[0])) {
                 cube(l,_,_) -= ksigma(cube(l,_,_)[idg]);
             }
 
+            // Subtract median of total cube
+            cube -= median(reform(cube, cube.dims[0], cube.dims[1]*cube.dims[2])(_,idg));
+
+            // Save file
             fimg.update(cube);
         }
     }
