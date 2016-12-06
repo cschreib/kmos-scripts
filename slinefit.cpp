@@ -258,6 +258,7 @@ int phypp_main(int argc, char* argv[]) {
     double delta_z = 0.2;
     double delta_offset = 0.2;
     bool use_global_chi2 = false;
+    bool full_range = false;
     bool local_continuum = false;
     double local_continuum_width = 8000.0;
     bool fit_continuum_template = false;
@@ -285,7 +286,7 @@ int phypp_main(int argc, char* argv[]) {
         delta_z, lambda_pad, local_continuum, local_continuum_width, flux_hdu, error_hdu,
         fit_continuum_template, name(tcosmo, "cosmo"), template_dir, use_global_chi2,
         allow_offsets, offset_max, offset_snr_min, delta_offset, residual_rescale,
-        mc_errors, num_mc, name(tseed, "seed"), name(nthread, "threads")
+        mc_errors, num_mc, name(tseed, "seed"), name(nthread, "threads"), full_range
     ));
 
     // Setup cosmological parameters
@@ -446,8 +447,7 @@ int phypp_main(int argc, char* argv[]) {
 
     // Identify good regions of the spectrum
     vec1b goodspec = is_finite(flx) && is_finite(err) && err > 0;
-    vec1u idl = where(goodspec);
-    if (idl.size() <= lambda_pad*2) {
+    if (count(goodspec) <= lambda_pad*2) {
         error("the spectrum does not contain any valid point");
         return 1;
     }
@@ -457,20 +457,22 @@ int phypp_main(int argc, char* argv[]) {
     goodspec = keep_gaps_and_expand(goodspec, 10, lambda_pad);
 
     // Identify regions of the spectrum that are NaN and give them zero weight
-    vec1u id_flagged = where(goodspec && !goodspec_flag);
-    flx[id_flagged] = 0; err[id_flagged] = 1e20*median(err[where(goodspec_flag)]);
+    {
+        vec1u id_flagged = where(goodspec && !goodspec_flag);
+        flx[id_flagged] = 0;
+        err[id_flagged] = 1e20*median(err[where(goodspec_flag)]);
+    }
 
     // Select a wavelength domain centered on the line(s)
-    idl = where(lam > lambda_min*(1.0+z0-2*dz)
-        && lam < lambda_max*(1.0+z0+2*dz)
-        && goodspec);
+    const vec1u idl = (full_range ? where(goodspec) : where(goodspec &&
+        lam > lambda_min*(1.0+z0-2*dz) && lam < lambda_max*(1.0+z0+2*dz)));
 
     if (idl.empty()) {
         error("none of the chosen lines are covered by the provided spectrum at z=", z0, " +/- ", dz);
-        idl = where(goodspec);
+        vec1u tidl = where(goodspec);
         note("your redshift search for these lines requires a range within ",
             lambda_min*(1.0+z0-2*dz), " to ", lambda_max*(1.0+z0+2*dz));
-        note("but the spectrum only covers ", min(lam[idl]), " to ", max(lam[idl]));
+        note("but the spectrum only covers ", min(lam[tidl]), " to ", max(lam[tidl]));
         return 1;
     }
 
@@ -1148,7 +1150,8 @@ int phypp_main(int argc, char* argv[]) {
 
     // Compute reduced chi2 grid
     best_fit.chi2_grid /= ndof;
-    vec1d pz = exp(-(best_fit.chi2_grid - best_fit.chi2/ndof));
+    best_fit.chi2      /= ndof;
+    vec1d pz = exp(-(best_fit.chi2_grid - best_fit.chi2));
     pz -= min(pz);
     pz /= integrate(z_grid, pz);
 
@@ -1166,7 +1169,7 @@ int phypp_main(int argc, char* argv[]) {
     if (verbose) {
         if (is_finite(best_fit.z)) {
             print("best redshift: ", best_fit.z, " + ", zup, " - ", zlow,
-                " (chi2: ", best_fit.chi2, ", reduced: ", best_fit.chi2/ndof, ")");
+                " (chi2: ", best_fit.chi2*ndof, ", reduced: ", best_fit.chi2, ")");
         } else {
             print("could not fit any redshift...");
         }
@@ -1463,6 +1466,10 @@ void print_help(const std::map<std::string,line_t>& db) {
         "spectral elements close to the lines (which is ). This will only make sense if "
         "there is continuum emission and you are using the 'fit_continuum_template' option, "
         "in which case it will increase the weight of the continuum fit in the chi2.");
+    bullet("full_range", "Set this flag to fit the entire spectrum. By default the program "
+        "will ignore the ranges of the spectrum that are not covered by any line given the "
+        "searched redshift range. This speeds up computation, but also ignores some of the "
+        "observations, so you can disable this optimization with this flag.");
     bullet("lambda_pad", "Must be an integer. It defines the number of wavelength element "
         "that are ignored both at the beginning and end of the spectrum. Default is 5 "
         "elements. This is used to flag out invalid and poorly covered spectral regions "
