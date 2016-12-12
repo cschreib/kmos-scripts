@@ -668,7 +668,7 @@ int phypp_main(int argc, char* argv[]) {
             }
         }
 
-        vec1u uid = uniq(group, sort(group));
+        vec1u uid = unique_ids(group);
 
         // If no group was merged, then we have converged
         if (uid.size() == group.size()) break;
