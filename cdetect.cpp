@@ -810,7 +810,7 @@ int phypp_main(int argc, char* argv[]) {
                 // spectral features. Indeed, one spectral feature may be
                 // associated to several lines, within the allowed uncertainty,
                 // but we want it to only count once regardless.
-                vec1u idus = uniq(zfrom, idz[sort(zfrom[idz])]);
+                vec1u idus = idz[unique_ids(zfrom[idz])];
 
                 if (idus.size() > 2) {
                     vec1d tz = zs[idus];
