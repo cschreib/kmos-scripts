@@ -1,8 +1,6 @@
 #include <phypp.hpp>
 #include <phypp/math/mpfit.hpp>
 
-// Global variable!
-
 // Structure to define a line or line group to be fitted simultaneously
 struct line_t {
     line_t() = default;
@@ -46,8 +44,6 @@ struct fit_result_t {
 
     vec1d model;
     vec1d model_continuum;
-
-    std::function<vec1d(const vec1d&, bool)> model_fun;
 
     fit_result_t(uint_t tnz, uint_t nline) {
         chi2_grid = replicate(dinf, tnz);
