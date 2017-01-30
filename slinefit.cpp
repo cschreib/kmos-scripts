@@ -249,6 +249,7 @@ int phypp_main(int argc, char* argv[]) {
 
     double z0 = dnan;
     double dz = 0.3;
+    bool forbid_absorption = true;
     bool allow_offsets = false;
     double offset_snr_min = 5.0;
     double width_min = 50.0;
@@ -286,7 +287,8 @@ int phypp_main(int argc, char* argv[]) {
         delta_z, lambda_pad, local_continuum, local_continuum_width, flux_hdu, error_hdu,
         fit_continuum_template, name(tcosmo, "cosmo"), template_dir, use_global_chi2,
         allow_offsets, offset_max, offset_snr_min, delta_offset, residual_rescale,
-        mc_errors, num_mc, name(tseed, "seed"), name(nthread, "threads"), full_range
+        mc_errors, num_mc, name(tseed, "seed"), name(nthread, "threads"), full_range,
+        forbid_absorption
     ));
 
     // Setup cosmological parameters
@@ -740,6 +742,25 @@ int phypp_main(int argc, char* argv[]) {
             m = m(idne,_);
 
             linfit_result res = linfit_pack(tflx, terr, m);
+
+            // If asked, ignore lines that would be fitted in absorption
+            if (forbid_absorption) {
+                vec1u id1, id2;
+                match(idne, id_amp, id1, id2);
+                res.params[id1[where(res.params[id1] < 0)]] = 0;
+                res.errors[id1[where(res.params[id1] < 0)]] = 0;
+
+                // Recompute the chi2 if using the global chi2
+                // Else it will be recomputed just below
+                if (use_global_chi2) {
+                    vec1d tmodel(tflx.size());
+                    for (uint_t il : range(idne)) {
+                        tmodel += res.params[il]*m(il,_);
+                    }
+
+                    res.chi2 = total(sqr((tflx - tmodel)/terr));
+                }
+            }
 
             if (!use_global_chi2) {
                 // Compute local chi2 (only counting pixels around the lines, not the continuum)
@@ -1247,17 +1268,44 @@ int phypp_main(int argc, char* argv[]) {
     tlines = tlines[ids]; fgroup = fgroup[ids]; line_id = line_id[ids];
 
     // Rescale fluxes and uncertainties to original units
-    best_fit.flux  *= 1e-17; best_fit.flux_err        *= 1e-17;
-    best_fit.cont  *= 1e-17; best_fit.cont_err        *= 1e-17;
-    best_fit.model *= 1e-17; best_fit.model_continuum *= 1e-17;
+    std::string lunit, lfunit, funit, eunit, lamname, lamname2;
+    if (!frequency) {
+        lamname = "lambda";
+        lamname2 = "wavelength";
+        lunit = "[um]";
+        lfunit = "[erg/s/cm2]";
+        funit = "[erg/s/cm2/A]";
+        eunit = "[A]";
+        best_fit.flux  *= 1e-17; best_fit.flux_err        *= 1e-17;
+        best_fit.cont  *= 1e-17; best_fit.cont_err        *= 1e-17;
+        best_fit.model *= 1e-17; best_fit.model_continuum *= 1e-17;
+    } else {
+        lamname = "nu";
+        lamname2 = "frequency";
+        lunit = "[GHz]";
+        lfunit = "[Jy km/s]";
+        funit = "[mJy]";
+        eunit = "[km/s]";
+        best_fit.flux     *= 2.99792e5/(1e4*best_fit.lambda);
+        best_fit.flux_err *= 2.99792e5/(1e4*best_fit.lambda);
+        best_fit.cont     *= 1e3;
+        best_fit.cont_err *= 1e3;
+        best_fit.ew       *= 2.99792e5/(1e4*best_fit.lambda);
+        best_fit.ew_err   *= 2.99792e5/(1e4*best_fit.lambda);
+        best_fit.lambda_err /= best_fit.lambda;
+        best_fit.lambda = 2.99792e5/best_fit.lambda;
+        best_fit.lambda_err *= best_fit.lambda;
+    }
 
     // Write the result
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
     if (verbose) note("write to disk...");
 
     if (ascii) {
-        vec1s hdr = {"line", "wavelength", "error", "fit group", "flux [erg/s/cm2]", "error", "free width?", "width [km/s]",
-            "error", "free offset?", "offset [km/s]", "error", "cont [erg/s/cm2/A]", "error", "EW [A]", "error"};
+        vec1s hdr = {"line", lamname2+" "+lunit, "error", "fit group",
+            "flux "+lfunit, "error", "free width?", "width [km/s]",
+            "error", "free offset?", "offset [km/s]", "error",
+            "cont "+funit, "error", "EW "+eunit, "error"};
 
         ascii::write_table_hdr(filebase+"_slfit_lines.cat", 20, hdr,
             tlines, best_fit.lambda, best_fit.lambda_err, fgroup,
@@ -1395,6 +1443,10 @@ void print_help(const std::map<std::string,line_t>& db) {
     bullet("offset_snr_min=...", "Must be a positive number. It defines the minimum SNR "
         "a line should have to be allowed to shift its centroid owing to velocity offsets "
         "(if 'allow_offsets' is set). Default is SNR=5.");
+    bullet("forbid_absorption", "Set this flag to forbid the fit from using absorption lines. "
+        "When this option is enabled, all lines are assumed to be emission lines. In cases where "
+        "the linear fit would favor an absorption feature, the line is set to zero flux. The "
+        "default behavior is to allow each line to be seen either in absorption or emission.");
     bullet("fit_continuum_template", "Set this flag to fit for the continuum emission using "
         "a set of templates provided in the 'template_dir' directory. All these templates "
         "will be linearly combined to best fit the continuum, and the fit is done jointly "
