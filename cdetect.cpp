@@ -13,7 +13,6 @@ struct line_t {
 };
 
 // Local functions (defined at the end of the file)
-vec2u segment(vec2u map, uint_t first_id, uint_t& nsrc);
 vec2u grow_within(vec2u map, vec2b mask);
 void print_help(const std::map<std::string,line_t>& db);
 void print_available_lines(const std::map<std::string,line_t>& db);
@@ -1020,62 +1019,6 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     return 0;
-}
-
-
-// Function to segment a binary map into multiple components.
-// Does no de-blending. The returned map contains IDs between 'first_id' and
-// 'first_id + nsrc' (where 'nsrc' is the number of identified segments, which is
-// provided in output). Values of 0 in the input binary map are also 0 in the
-// segmentation map.
-vec2u segment(vec2u map, uint_t first_id, uint_t& nsrc) {
-    vec2u smap(map.dims);
-    nsrc = 0;
-    uint_t id = first_id;
-
-    std::vector<uint_t> oy, ox;
-    for (uint_t y : range(map.dims[0]))
-    for (uint_t x : range(map.dims[1])) {
-        if (map.safe(y,x) == 0) continue;
-
-        // Found a guy
-        // Use an A* - like algorithm to navigate around and
-        // figure out its extents
-        oy.clear(); ox.clear();
-
-        uint_t added = 0;
-        auto process_point = [&ox,&oy,&map,&smap,id,&added](uint_t ty, uint_t tx) {
-            ++added;
-            map.safe(ty,tx) = 0;
-            smap.safe(ty,tx) = id;
-
-            auto check_add = [&ox,&oy,&map](uint_t tty, uint_t ttx) {
-                if (map.safe(tty,ttx) != 0) {
-                    oy.push_back(tty);
-                    ox.push_back(ttx);
-                }
-            };
-
-            if (ty != 0)             check_add(ty-1,tx);
-            if (ty != map.dims[0]-1) check_add(ty+1,tx);
-            if (tx != 0)             check_add(ty,tx-1);
-            if (tx != map.dims[1]-1) check_add(ty,tx+1);
-        };
-
-        process_point(y, x);
-
-        while (!ox.empty()) {
-            uint_t ty = oy.back(); oy.pop_back();
-            uint_t tx = ox.back(); ox.pop_back();
-            process_point(ty, tx);
-        }
-
-        ++id;
-    }
-
-    nsrc = id - first_id;
-
-    return smap;
 }
 
 // Function to grow a segmentation map within an allowed mask. The segmentation map
