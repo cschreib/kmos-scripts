@@ -7,7 +7,7 @@ int phypp_main(int argc, char* argv[]) {
 
     lam *= 1e-4;
 
-    vec1f lines = {0.41017, 0.43405, 0.48613};
+    vec1f lines = {0.41017, 0.43405, 0.48613, 0.65628};
     double dl = 0.02;
     double width1 = 200.0;
 
@@ -32,8 +32,7 @@ int phypp_main(int argc, char* argv[]) {
 
     lam /= 1e-4;
 
-    file::mkdir("../templates_noabs");
-    ascii::write_table("../templates_noabs/"+file::remove_extension(argv[1])+".dat", 18, lam, sed);
+    ascii::write_table(file::remove_extension(file::get_basename(argv[1]))+".dat", 18, lam, sed);
 
     return 0;
 }
