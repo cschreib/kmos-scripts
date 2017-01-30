@@ -8,7 +8,7 @@ auto gauss_integral(TX0&& x0, TX1&& x1, double xc, double xw, double amp = 1.0) 
     // Average this from t = x-0.5 to x+0.5
     // exp(-sqr(t - xc)/(2.0*sqr(xw)))/(sqrt(2*dpi)*xw)
 
-    return (amp/(x1 - x0))*(
+    return 0.5*(amp/(x1 - x0))*(
         erf((x1 - xc)/(sqrt(2.0)*xw)) -
         erf((x0 - xc)/(sqrt(2.0)*xw))
     );
