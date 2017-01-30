@@ -411,6 +411,7 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     // Handle wavelength axis units
+    bool frequency = false;
     std::string cunit; {
         if (!fimg.read_keyword("CUNIT1", cunit)) {
             warning("could not find unit of wavelength axis");
@@ -430,8 +431,20 @@ int phypp_main(int argc, char* argv[]) {
                 conv = 1e4;
             } else if (cunit == "m") {
                 conv = 1e6;
+            } else if (cunit == "hz") {
+                frequency = true;
+                conv = 1.0;
+            } else if (cunit == "khz") {
+                frequency = true;
+                conv = 1e3;
+            } else if (cunit == "mhz") {
+                frequency = true;
+                conv = 1e6;
+            } else if (cunit == "ghz") {
+                frequency = true;
+                conv = 1e9;
             } else {
-                error("unrecognized wavelength unit '", cunit, "'");
+                error("unrecognized wavelength/frequency unit '", cunit, "'");
                 return 1;
             }
 
@@ -440,7 +453,30 @@ int phypp_main(int argc, char* argv[]) {
         }
     }
 
-    vec1d lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+    vec1d lam, laml, lamu;
+    if (!frequency) {
+        lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+        laml = lam - 0.5*cdelt;
+        lamu = lam + 0.5*cdelt;
+    } else {
+        // x-axis is frequency, convert that to a wavelength
+        // and do not forget to reverse the data so that wavelenths are
+        // strictly increasing
+        vec1d freq = crval + cdelt*(findgen(nlam) + (1 - crpix));
+        vec1d freql = freq - 0.5*cdelt;
+        vec1d frequ = freq + 0.5*cdelt;
+        lam = reverse(1e6*2.99792e8/freq);
+        laml = reverse(1e6*2.99792e8/frequ);
+        lamu = reverse(1e6*2.99792e8/freql);
+        flx = reverse(flx);
+        err = reverse(err);
+        cdelt = median(lamu-laml);
+        if (verbose) {
+            note("input spectrum in frequency unit, converting to wavelength");
+            note("new coverage: ", lam.front(), " to ", lam.back(), " microns (average cdelt = ", cdelt, ")");
+        }
+    }
+
     uint_t orig_nlam = lam.size();
 
     // Identify good regions of the spectrum
@@ -477,6 +513,8 @@ int phypp_main(int argc, char* argv[]) {
     flx = flx[idl];
     err = err[idl];
     lam = lam[idl];
+    laml = laml[idl];
+    lamu = lamu[idl];
     goodspec_flag = goodspec_flag[idl];
 
     // Define redshift grid so as to have the requested number of samples per wavelength element
@@ -515,7 +553,7 @@ int phypp_main(int argc, char* argv[]) {
 
     if (verbose) {
         note("fitting ", flx.dims[0], " spectral elements between ",
-           lam[0], " and ", lam.back(), " um...");
+           lam.front(), " and ", lam.back(), " um...");
         note("with ", lines.size(), "/", all_lines.size(), " lines from the database");
     }
 
@@ -535,7 +573,9 @@ int phypp_main(int argc, char* argv[]) {
             templates.push_back(tp);
         }
 
-        note("and ", templates.size(), " galaxy templates for the continuum level");
+        if (verbose) {
+            note("and ", templates.size(), " galaxy templates for the continuum level");
+        }
     }
 
     // Perform a redshift search
@@ -558,7 +598,9 @@ int phypp_main(int argc, char* argv[]) {
     // Renormalize flux and errors in units of 1e-17 erg/s/cm2/A to avoid
     // numerical imprecision (it is always better to deal with numbers close to unity).
     // This helps prevent mpfit getting stuck and not varying the line widths.
-    flx *= 1e17; err *= 1e17;
+    if (!frequency) {
+        flx *= 1e17; err *= 1e17;
+    }
 
     // Function to perform the fit!
     // -----------------------------------------------------------------
@@ -587,8 +629,12 @@ int phypp_main(int argc, char* argv[]) {
         nmodel = lines.size();
         append(p,       replicate(0.0,   lines.size()));
         append(p_fixed, replicate(false, lines.size()));
-        append(p_min,   replicate(dnan,  lines.size()));
         append(p_max,   replicate(dnan,  lines.size()));
+        if (forbid_absorption) {
+            append(p_min, replicate(0, lines.size()));
+        } else {
+            append(p_min, replicate(dnan, lines.size()));
+        }
 
         // Line widths
         if (same_width) {
@@ -645,8 +691,13 @@ int phypp_main(int argc, char* argv[]) {
         // Function to perform a non-linear fit (if varying the line widths)
         // -----------------------------------------------------------------
         auto try_nlfit = [&](double tz, double& gchi2) {
-            auto model = [&](const vec1d& l, const vec1d& tp) {
-                vec1d m(l.dims);
+            struct lam_t {
+                lam_t(vec1d tl, vec1d tu) : ll(std::move(tl)), lu(std::move(tu)) {}
+                vec1d ll, lu;
+            };
+
+            auto model = [&](const lam_t& l, const vec1d& tp) {
+                vec1d m(l.ll.dims);
                 for (uint_t il : range(lines)) {
                     if (local_continuum) {
                         m[line_idc[il]] += tp[id_cont[il]];
@@ -656,7 +707,7 @@ int phypp_main(int argc, char* argv[]) {
                         double lw = (tp[id_width[il]]/3e5)*lines[il].lambda[isl]*(1.0+tz);
                         double l0 = lines[il].lambda[isl]*(1.0+tz)*(1.0+tp[id_offset[il]]/3e5);
                         double amp = 1e-4*lines[il].ratio[isl]*tp[id_amp[il]];
-                        m += gauss_integral(l-cdelt, l+cdelt, l0, lw, amp);
+                        m += gauss_integral(l.ll, l.lu, l0, lw, amp);
                     }
                 }
 
@@ -674,11 +725,12 @@ int phypp_main(int argc, char* argv[]) {
             opts.lower_limit = p_min;
             opts.frozen      = p_fixed;
 
-            mpfit_result res = mpfitfun(tflx, terr, lam, model, p, opts);
+            lam_t lt{laml, lamu};
+            mpfit_result res = mpfitfun(tflx, terr, lt, model, p, opts);
 
             if (!use_global_chi2) {
                 // Compute local chi2 (only counting pixels around the lines, not the continuum)
-                vec1d tmodel = model(lam[id_chi2], res.params);
+                vec1d tmodel = model(lam_t{laml[id_chi2], lamu[id_chi2]}, res.params);
                 res.chi2 = total(sqr((tflx[id_chi2] - tmodel)/terr[id_chi2]));
             }
 
@@ -693,13 +745,9 @@ int phypp_main(int argc, char* argv[]) {
                 fres.offset      = res.params[id_offset];
                 fres.offset_err  = res.errors[id_offset];
 
-                fres.model = model(lam, res.params);
+                fres.model = model(lt, res.params);
                 vec1d tp = res.params; tp[id_amp] = 0;
-                fres.model_continuum = model(lam, tp);
-
-                fres.model_fun = [=](const vec1d& x, bool with_continuum) {
-                    return model(x, res.params);
-                };
+                fres.model_continuum = model(lt, tp);
             }
 
             if (res.success && res.chi2 < gchi2) {
@@ -723,7 +771,7 @@ int phypp_main(int argc, char* argv[]) {
                     double lw = (p[id_width[il]]/3e5)*lines[il].lambda[isl]*(1.0+tz);
                     double l0 = lines[il].lambda[isl]*(1.0+tz)*(1.0+p[id_offset[il]]/3e5);
                     double amp = 1e-4*lines[il].ratio[isl];
-                    m(id_mline[il],_) += gauss_integral(lam-cdelt, lam+cdelt, l0, lw, amp);
+                    m(id_mline[il],_) += gauss_integral(laml, lamu, l0, lw, amp);
                 }
             }
 
@@ -1321,13 +1369,15 @@ int phypp_main(int argc, char* argv[]) {
     fits::output_table otbl(filebase+"_slfit.fits");
     otbl.write_columns(ftable(
         best_fit.chi2, best_fit.z, zup, zlow, fgroup,
-        best_fit.lambda, best_fit.lambda_err, best_fit.flux,   best_fit.flux_err,
+        best_fit.flux,   best_fit.flux_err,
         best_fit.free_width,  best_fit.width,  best_fit.width_err,
         best_fit.free_offset, best_fit.offset, best_fit.offset_err,
         best_fit.cont,   best_fit.cont_err,   best_fit.ew,     best_fit.ew_err
     ));
     otbl.write_columns(
-        "lines", tlines, "grid_z", z_grid, "grid_prob", pz, "grid_chi2", best_fit.chi2_grid
+        "lines", tlines, "grid_z", z_grid, "grid_prob", pz,
+        lamname, best_fit.lambda, lamname+"_err", best_fit.lambda_err,
+        "grid_chi2", best_fit.chi2_grid
     );
 
     if (save_model && !best_fit.model.empty()) {
@@ -1336,6 +1386,12 @@ int phypp_main(int argc, char* argv[]) {
         vec1d bmodelc = replicate(dnan, orig_nlam);
         bmodel[idl]  = best_fit.model;
         bmodelc[idl] = best_fit.model_continuum;
+
+        if (frequency) {
+            // Reverse back the array to frequency ordering
+            bmodel = reverse(bmodel);
+            bmodelc = reverse(bmodelc);
+        }
 
         // Then save it
         fits::output_image ospec(filebase+"_slfit_model.fits");
