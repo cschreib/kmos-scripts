@@ -681,16 +681,16 @@ The first contains the background level, while the second and third contain the 
 
 Once you have extracted the spectrum of one of you object, regardless of the method you used, you will want to find either one or all of the following: 1) the redshift of your object, 2) the line fluxes and 3) the velocity dispersions.
 
-To do so, you can use the `slinefit` program provided in this package. The way it works is very simple: you give it a redshift window to search in, say z=2.2 to z=2.6, and the lines you expect to detect, say [OIII] and Halpha. The program will then generate a fine grid of redshifts within the chosen interval, and will try to fit the redshifted lines on the spectrum for each redshift of the grid. The redshift that provides the smallest chi2 will be chosen as the redshift of your source. In the fit, both the flux of the lines and their velocity dispersion (i.e., the width) are varied, and lines can be organized in groups with fixed ratios (e.g., if you know, that [OIII]5007 and [OIII]4959 always have the same flux ratio).
+To do so, you can use the `slinefit` program provided this other github repository:
+https://github.com/cschreib/slinefit
+
+The way it works is very simple: you give it a redshift window to search in, say z=2.2 to z=2.6, and the lines you expect to detect, say [OIII] and Halpha. The program will then generate a fine grid of redshifts within the chosen interval, and will try to fit the redshifted lines on the spectrum for each redshift of the grid. The redshift that provides the smallest chi2 will be chosen as the redshift of your source. In the fit, both the flux of the lines and their velocity dispersion (i.e., the width) are varied, and lines can be organized in groups with fixed ratios (e.g., if you know, that [OIII]5007 and [OIII]4959 always have the same flux ratio).
 
 Optionally, the program can also deal with continuum emission. In addition to fitting the lines, it will also fit a linear combination of typical galaxy templates (the same as in EAzY, by G. Brammer, just with higher spectral resolution).
 
 Below is a short overview of the main features of the program.
 
-1) First copy the `slinefit.cpp` file in the directory where you extracted your spectra, and compile it:
-```bash
-cphy++ optimize slinefit.cpp
-```
+1) First, compile and install the tool.
 
 2) The simplest way to use this program is the following:
 ```bash
