@@ -112,6 +112,8 @@ int phypp_main(int argc, char* argv[]) {
                 shx.push_back(dox+tx[j]);
                 shy.push_back(doy+ty[j]);
             }
+        } else {
+            warning("could not find dither in ", dir, "helpers/shifts.txt");
         }
     }
 
