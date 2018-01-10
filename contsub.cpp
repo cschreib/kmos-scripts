@@ -27,14 +27,14 @@ int phypp_main(int argc, char* argv[]) {
     // Estimate and subtract the continuum emission
     for (uint_t y : range(cflx.dims[1]))
     for (uint_t x : range(cflx.dims[2])) {
-        vec1d tflx = cflx(_,y,x);
+        vec1d tflx = cflx.safe(_,y,x);
         // vec1d twei = 1.0/cerr(_,y,x);
-        vec1d twei = 0.0*cerr(_,y,x) + 1.0;
+        vec1d twei = 0.0*cerr.safe(_,y,x) + 1.0;
 
         for (uint_t l : range(cflx.dims[0])) {
             uint_t l0 = max(0, int_t(l)-int_t(continuum_width/2));
-            uint_t l1 = min(cflx.dims[0]-1, int_t(l)+int_t(continuum_width/2));
-            cflx(l,y,x) -= weighted_median(tflx[l0-_-l1], twei[l0-_-l1]);
+            uint_t l1 = min(cflx.dims[0]-1, l+continuum_width/2);
+            cflx.safe(l,y,x) -= weighted_median(tflx.safe[l0-_-l1], twei.safe[l0-_-l1]);
         }
     }
 
