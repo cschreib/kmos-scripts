@@ -531,12 +531,13 @@ int phypp_main(int argc, char* argv[]) {
         cseg += det;
 
         // Segment them into individual sources
-        uint_t nsrc;
-        uint_t first_id = nsrc_tot + 1;
-        det = segment(det, first_id, nsrc);
-        nsrc_tot += nsrc;
+        segment_output so;
+        segment_params sp;
+        sp.first_id = nsrc_tot + 1;
+        det = segment(det, so, sp);
+        nsrc_tot += so.id.size();
 
-        if (nsrc != 0) {
+        if (!so.id.empty()) {
             // We have a new source(s)!
             // Make them grow a little toward lower S/N since they must be real
             if (snr_source < snr_det) {
@@ -547,10 +548,10 @@ int phypp_main(int argc, char* argv[]) {
             seg(l,_,_) = det;
 
             // For each source, save its identifiers and some information
-            for (uint_t i : range(nsrc)) {
-                vec1u idd = where(det == first_id + i);
+            for (uint_t i : range(so.id)) {
+                vec1u idd = where(det == so.id[i]);
 
-                id.push_back(first_id + i);
+                id.push_back(so.id[i]);
                 npix.push_back(idd.size());
 
                 lpix.push_back(l+1);
@@ -844,7 +845,7 @@ int phypp_main(int argc, char* argv[]) {
                     // enough, so we have to be careful.
 
                     // First count the number of unique lines
-                    vec1u idul = uniq(zline, idz[sort(zline[idz])]);
+                    vec1u idul = ids[unique_ids(zline[ids])];
 
                     vec1u blend_group(idul.size());
                     uint_t groupid = 0;
