@@ -15,7 +15,8 @@ int phypp_main(int argc, char* argv[]) {
     bool mask_center = false;
     double mask_radius = 0.5; // arcsec
     std::string masks;
-    read_args(argc-1, argv+1, arg_list(mask_center, masks, mask_radius));
+    double cx = dnan, cy = dnan;
+    read_args(argc-1, argv+1, arg_list(mask_center, masks, mask_radius, cx, cy));
 
     vec1d ra, dec, size;
     if (!masks.empty()) {
@@ -78,7 +79,11 @@ int phypp_main(int argc, char* argv[]) {
                 vec2d ix = generate_img(mask.dims, [](int_t,    int_t tx) { return tx; });
                 vec2d iy = generate_img(mask.dims, [](int_t ty, int_t)    { return ty; });
 
-                mask = mask && sqr(nx/2 - ix) + sqr(ny/2 - iy) > sqr(mask_radius/aspix);
+                double tcx = cx, tcy = cy;
+                if (!is_finite(tcx)) tcx = nx/2;
+                if (!is_finite(tcy)) tcy = ny/2;
+
+                mask = mask && sqr(tcx - ix) + sqr(tcy - iy) > sqr(mask_radius/aspix);
             }
 
             // Mask borders

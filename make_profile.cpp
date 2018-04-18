@@ -395,9 +395,9 @@ int phypp_main(int argc, char* argv[]) {
                 fits::setkey(seg_hdr, "CRPIX2", shsize+1+sqout.dy[0]);
                 astro::wcs seg_wcs(seg_hdr);
 
-                astro::regrid_options ropts;
-                ropts.method = astro::regrid_method::nearest;
-                seg = astro::regrid(seg, seg_wcs, hri_wcs, ropts);
+                astro::regrid_interpolate_params ropts;
+                ropts.method = interpolation_method::nearest;
+                seg = astro::regrid_interpolate(seg, seg_wcs, hri_wcs, ropts);
 
                 // Mask out other sources
                 vec1u idb = where(is_finite(seg) && seg > 0);
@@ -473,7 +473,7 @@ int phypp_main(int argc, char* argv[]) {
             for (double dx : rgen(dxmin, dxmax, ndx)) {
                 hri_wcs.w->crpix[0] = hsize+1+qout.dx[0]+dx*dpp;
                 hri_wcs.w->crpix[1] = hsize+1+qout.dy[0]+dy*dpp;
-                vec2d tc = astro::regrid(cutout, hri_wcs, wcs);
+                vec2d tc = astro::regrid_drizzle(cutout, hri_wcs, wcs);
                 tc[where(!is_finite(tc))] = 0;
 
                 auto res = linfit(tflx2d, terr2d, tc[idf], 1.0);
@@ -507,7 +507,7 @@ int phypp_main(int argc, char* argv[]) {
             for (double dx : rgen(dxmin, dxmax, ndx)) {
                 hri_wcs.w->crpix[0] = hsize+1+qout.dx[0]+dx*dpp;
                 hri_wcs.w->crpix[1] = hsize+1+qout.dy[0]+dy*dpp;
-                vec2d tc = astro::regrid(cutout, hri_wcs, wcs);
+                vec2d tc = astro::regrid_drizzle(cutout, hri_wcs, wcs);
                 tc[where(!is_finite(tc))] = 0;
 
                 auto res = linfit(tflx2d, terr2d, tc[idf], 1.0);
@@ -535,7 +535,7 @@ int phypp_main(int argc, char* argv[]) {
             bdx = 0.0;
             bdy = 0.0;
 
-            vec2d tc = astro::regrid(cutout, hri_wcs, wcs);
+            vec2d tc = astro::regrid_drizzle(cutout, hri_wcs, wcs);
             tc[where(!is_finite(tc))] = 0;
 
             auto res = linfit(tflx2d, terr2d, tc[idf], 1.0);
@@ -549,7 +549,7 @@ int phypp_main(int argc, char* argv[]) {
 
         hri_wcs.w->crpix[0] = hsize+1+qout.dx[0]+bdx*dpp;
         hri_wcs.w->crpix[1] = hsize+1+qout.dy[0]+bdy*dpp;
-        profile2d = astro::regrid(cutout, hri_wcs, wcs);
+        profile2d = astro::regrid_drizzle(cutout, hri_wcs, wcs);
         profile2d[where(!is_finite(profile2d))] = 0;
         model2d = 1e-17*bamp*profile2d;
         profile2d /= total(profile2d);

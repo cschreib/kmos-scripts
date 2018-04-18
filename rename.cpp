@@ -22,7 +22,7 @@ int phypp_main(int argc, char* argv[]) {
             continue;
         }
 
-        obj = trim(tolower(replace(obj, ",", "-")));
+        obj = trim(to_lower(replace(obj, ",", "-")));
 
         if (obj == "object") obj = "acq";
         else if (obj == "dark" || obj == "flat-off" || obj == "flat-lamp" ||
@@ -38,7 +38,7 @@ int phypp_main(int argc, char* argv[]) {
                 continue;
             }
 
-            tpl = trim(tolower(tpl));
+            tpl = trim(to_lower(tpl));
 
             if (!start_with(tpl, "kmos_spec_obs")) {
                 warning("unknown frame type '", obj, "' with template '", tpl, "'");

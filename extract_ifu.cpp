@@ -14,7 +14,7 @@ int phypp_main(int argc, char* argv[]) {
     vec1s names;
     read_args(argc-1, argv+1, arg_list(names));
 
-    names = tolower(names);
+    names = to_lower(names);
 
     vec1b found(names.size());
     for (uint_t i : range(24)) {
@@ -22,7 +22,7 @@ int phypp_main(int argc, char* argv[]) {
 
         std::string name;
         fimg.read_keyword("HIERARCH ESO OCS ARM"+strn(i+1)+" NAME", name);
-        name = tolower(trim(name, " '"));
+        name = to_lower(trim(name, " '"));
 
         uint_t k = where_first(name == names);
         if (k == npos) continue;

@@ -60,6 +60,7 @@ int phypp_main(int argc, char* argv[]) {
     bool fit_background = false;
     double spatial_smooth = 0.0; // radius of the smoothing kernel
     double minsnr = 3.0;
+    double minarea = 5.0;
     std::string expmap;
     double minexp = 1;
     bool velocity = false;
@@ -72,7 +73,7 @@ int phypp_main(int argc, char* argv[]) {
 
     // Read command line arguments
     read_args(argc-1, argv+1, arg_list(z0, dz, name(tline, "line"), width,
-        minsnr, fit_background, expmap, minexp, delta_z, uniform_error,
+        minsnr, fit_background, expmap, minexp, delta_z, uniform_error, minarea,
         velocity, spatial_smooth, verbose, oh_threshold, allow_absorption, outdir
     ));
 
@@ -161,24 +162,67 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     bool frequency = false;
-    std::string ctype;
-    if (fimg.read_keyword("CTYPE3", ctype)) {
-        if (ctype == "FREQ") {
-            // Cube in frequency units
-            frequency = true;
-        } else if (ctype == "WAVE") {
-            // Cube in wavelength units, nothing to do
-            frequency = false;
+    std::string cunit; {
+        if (!fimg.read_keyword("CUNIT3", cunit)) {
+            warning("could not find unit of wavelength axis");
+            note("assuming wavelengths are given in microns");
+        } else {
+            cunit = to_lower(cunit);
+            double conv = 1.0;
+            if (cunit == "angstrom") {
+                conv = 1e-4;
+            } else if (cunit == "nm") {
+                conv = 1e-3;
+            } else if (cunit == "um" || cunit == "micron") {
+                conv = 1.0;
+            } else if (cunit == "mm") {
+                conv = 1e3;
+            } else if (cunit == "cm") {
+                conv = 1e4;
+            } else if (cunit == "m") {
+                conv = 1e6;
+            } else if (cunit == "hz") {
+                frequency = true;
+                conv = 1.0;
+            } else if (cunit == "khz") {
+                frequency = true;
+                conv = 1e3;
+            } else if (cunit == "mhz") {
+                frequency = true;
+                conv = 1e6;
+            } else if (cunit == "ghz") {
+                frequency = true;
+                conv = 1e9;
+            } else {
+                error("unrecognized wavelength/frequency unit '", cunit, "'");
+                return 1;
+            }
+
+            crval *= conv;
+            cdelt *= conv;
         }
     }
 
-    vec1d  lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
-    double dspec = abs(cdelt);
-    double dlam = dspec;
-    if (frequency) {
-        double lam0 = 3e14/mean(lam);
-        lam = 3e14/lam;
-        dlam = dlam*sqr(lam0)/3e14;
+    vec1d lam, laml, lamu;
+    if (!frequency) {
+        lam = crval + cdelt*(findgen(nlam) + (1 - crpix));
+        laml = lam - 0.5*cdelt;
+        lamu = lam + 0.5*cdelt;
+    } else {
+        // x-axis is frequency, convert that to a wavelength
+        // and do not forget to reverse the data so that wavelenths are
+        // strictly increasing
+        vec1d freq = crval + cdelt*(findgen(nlam) + (1 - crpix));
+        vec1d freql = freq - 0.5*cdelt;
+        vec1d frequ = freq + 0.5*cdelt;
+        lam = 1e6*2.99792e8/freq;
+        laml = 1e6*2.99792e8/frequ;
+        lamu = 1e6*2.99792e8/freql;
+        cdelt = median(lamu-laml);
+        if (verbose) {
+            note("input spectrum in frequency unit, converting to wavelength");
+            note("new coverage: ", lam.front(), " to ", lam.back(), " microns (average cdelt = ", cdelt, ")");
+        }
     }
 
     // Read 2D astrometry
@@ -218,6 +262,8 @@ int phypp_main(int argc, char* argv[]) {
     cflx = cflx(idl,_,_);
     cerr = cerr(idl,_,_);
     lam = lam[idl];
+    laml = laml[idl];
+    lamu = lamu[idl];
 
     // Read exposure map if provided and flag out baddly covered pixels (optional)
     if (!expmap.empty() && is_finite(minexp)) {
@@ -252,6 +298,8 @@ int phypp_main(int argc, char* argv[]) {
         cflx = cflx(idl,_,_);
         cerr = cerr(idl,_,_);
         lam = lam[idl];
+        laml = laml[idl];
+        lamu = lamu[idl];
     }
 
     if (verbose) {
@@ -294,7 +342,7 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     // Define redshift grid so as to have the requested number of samples per wavelength element
-    double tdz = delta_z*dlam/(line.lambda[0]*(1.0+z0));
+    double tdz = delta_z*cdelt/(line.lambda[0]*(1.0+z0));
     uint_t nz = ceil(2*dz/tdz);
     vec1d zs = rgen(z0-dz, z0+dz, nz);
 
@@ -303,10 +351,15 @@ int phypp_main(int argc, char* argv[]) {
         note("redshift search (", nz, " redshifts, step = ", zs[1] - zs[0], ")...");
     }
 
-    vec2d chi2(cflx.dims[1], cflx.dims[2]); chi2[_] = dinf;
-    vec2d z(cflx.dims[1], cflx.dims[2]); z[_] = dnan;
-    vec2d flux(cflx.dims[1], cflx.dims[2]); flux[_] = dnan;
-    vec2d flux_err(cflx.dims[1], cflx.dims[2]); flux_err[_] = dnan;
+    vec2d chi2 = replicate(dinf, cflx.dims[1], cflx.dims[2]);
+    vec2d z = replicate(dnan, cflx.dims[1], cflx.dims[2]);
+    vec2d flux = replicate(dnan, cflx.dims[1], cflx.dims[2]);
+    vec2d flux_err = replicate(dnan, cflx.dims[1], cflx.dims[2]);
+    vec2d cont_flux, cont_flux_err;
+    if (fit_background) {
+        cont_flux = replicate(dnan, cflx.dims[1], cflx.dims[2]);
+        cont_flux_err = replicate(dnan, cflx.dims[1], cflx.dims[2]);
+    }
 
     if (uniform_error) {
         auto pg = progress_start(zs.size());
@@ -314,9 +367,9 @@ int phypp_main(int argc, char* argv[]) {
             vec1d model(lam.dims);
             for (uint_t il : range(line.lambda)) {
                 double tw = (width/3e5)*line.lambda[il]*(1.0+zs[iz]);
-                model += line.ratio[il]*exp(
-                    -sqr(line.lambda[il]*(1.0+zs[iz]) - lam)/(2.0*sqr(tw))
-                )/(sqrt(2.0*dpi)*tw*1e4);
+                model += integrate_gauss(laml, lamu,
+                    line.lambda[il]*(1.0+zs[iz]), tw, 1e-4*line.ratio[il]
+                );
             }
 
             vec1d err = cerr(_,cflx.dims[1]/2,cflx.dims[2]/2);
@@ -333,6 +386,10 @@ int phypp_main(int argc, char* argv[]) {
                     z(y,x) = zs[iz];
                     flux(y,x) = res.params[0];
                     flux_err(y,x) = res.errors[0];
+                    if (fit_background) {
+                        cont_flux(y,x) = res.params[1];
+                        cont_flux_err(y,x) = res.errors[1];
+                    }
                 }
             }
 
@@ -349,9 +406,9 @@ int phypp_main(int argc, char* argv[]) {
                 vec1d model(lam.dims);
                 for (uint_t il : range(line.lambda)) {
                     double tw = (width/3e5)*line.lambda[il]*(1.0+zs[iz]);
-                    model += line.ratio[il]*exp(
-                        -sqr(line.lambda[il]*(1.0+zs[iz]) - lam)/(2.0*sqr(tw))
-                    )/(sqrt(2.0*dpi)*tw*1e4);
+                    model += integrate_gauss(laml, lamu,
+                        line.lambda[il]*(1.0+zs[iz]), tw, 1e-4*line.ratio[il]
+                    );
                 }
 
                 linfit_result res;
@@ -366,6 +423,10 @@ int phypp_main(int argc, char* argv[]) {
                     z(y,x) = zs[iz];
                     flux(y,x) = res.params[0];
                     flux_err(y,x) = res.errors[0];
+                    if (fit_background) {
+                        cont_flux(y,x) = res.params[1];
+                        cont_flux_err(y,x) = res.errors[1];
+                    }
                 }
             }
 
@@ -375,11 +436,16 @@ int phypp_main(int argc, char* argv[]) {
 
     // Truncate the fit to a minimum SNR (optional)
     vec2d snr = flux/flux_err;
-    if (is_finite(minsnr)) {
-        if (verbose) note("truncate low SNR...");
+    if (minsnr > 0) {
+        if (verbose) note("truncate low SNR... (<", minsnr, ")");
 
-        vec1u ids = where(snr < minsnr);
-        z[ids] = dnan;
+        segment_deblend_params sdp;
+        sdp.detect_threshold = minsnr;
+        sdp.min_area = minarea;
+
+        segment_deblend_output sdo;
+        vec2u seg = segment_deblend(snr, sdo, sdp);
+        z[where(seg == 0)] = dnan;
     }
 
     // Convert redshift into velocity based on the reference redshift (optional)
@@ -388,11 +454,21 @@ int phypp_main(int argc, char* argv[]) {
         z = 3e5*(z-z0);
     }
 
+    if (frequency) {
+        flux     *= 2.99792e5/(1e4*line.lambda[0]*(1+z0));
+        flux_err *= 2.99792e5/(1e4*line.lambda[0]*(1+z0));
+        if (fit_background) {
+            cont_flux     *= 1e3;
+            cont_flux_err *= 1e3;
+        }
+    }
+
     // Write the result
     if (verbose) note("write to disk...");
     std::string filebase = outdir+file::remove_extension(file::get_basename(argv[1]));
     fits::output_image oimg(filebase+"_lfit_"+tline+".fits");
-    auto write_wcs = [&]() {
+    auto write_wcs = [&](std::string type) {
+        oimg.write_keyword("EXTNAME", type);
         oimg.write_keyword("CRPIX1", crpix1);
         oimg.write_keyword("CRPIX2", crpix2);
         oimg.write_keyword("CRVAL1", crval1);
@@ -409,27 +485,38 @@ int phypp_main(int argc, char* argv[]) {
         oimg.write_keyword("CD2_2",  cd22);
     };
 
-    oimg.write(vec2d(0,0)); // empty primary extension, KMOS convention
+    oimg.write_empty(); // empty primary extension, KMOS convention
 
     oimg.reach_hdu(1);
     oimg.write(z);
-    write_wcs();
+    write_wcs(velocity ? "VELOCITY" : "REDSHIFT");
 
     oimg.reach_hdu(2);
     oimg.write(flux);
-    write_wcs();
+    write_wcs("LINEFLUX");
 
     oimg.reach_hdu(3);
     oimg.write(flux_err);
-    write_wcs();
+    write_wcs("LINEERR");
 
     oimg.reach_hdu(4);
     oimg.write(chi2);
-    write_wcs();
+    write_wcs("CHI2");
 
     oimg.reach_hdu(5);
     oimg.write(snr);
-    write_wcs();
+    write_wcs("SNR");
+
+    if (fit_background) {
+        oimg.reach_hdu(6);
+        oimg.write(cont_flux);
+        write_wcs("CONT");
+
+        oimg.reach_hdu(7);
+        oimg.write(cont_flux_err);
+        write_wcs("CONTERR");
+    }
+
     return 0;
 }
 

@@ -62,7 +62,7 @@ int phypp_main(int argc, char* argv[]) {
     }
 
     // Extract 'simple' band ID from the grating: HKHKHK -> HK
-    std::string band = tolower(grating.substr(0, grating.size()/3));
+    std::string band = to_lower(grating.substr(0, grating.size()/3));
 
 
     // Function to add raw files of a given type to a SOF file
@@ -225,7 +225,7 @@ int phypp_main(int argc, char* argv[]) {
             main_file << "esorex  --log-file=esorex_illum.log kmos_illumination illum.sof\n";
             add_stop_fail(main_file);
         }
-    } else if (task == "stdstar" || task == "sci") {
+    } else if (task == "stdstar" || task == "sci" || task == "acq") {
         // --------------------------------------------
         // Reduce standard stars and science frames
         // --------------------------------------------
@@ -255,7 +255,7 @@ int phypp_main(int argc, char* argv[]) {
                 "illum_corr_"+grating};
 
             if (pipeline_version_rev >= 3.19) {
-                calfiles = toupper(calfiles);
+                calfiles = to_upper(calfiles);
             }
 
             calfiles += ".fits";
@@ -378,8 +378,51 @@ int phypp_main(int argc, char* argv[]) {
             sof.close();
 
             main_file << "# SCI\n";
+            main_file << "# Cubic spline interp., to get best flux\n";
+            main_file << "mkdir -p CS\n";
             main_file << "esorex  --log-file=esorex_sci.log kmos_sci_red -no_combine "
                 "-background " << baked_options << " sci.sof\n";
+            main_file << "mv *.fits CS/\n\n";
+            main_file << "# Nearest neighbor interp., to get uncertainty\n";
+            main_file << "mkdir -p NN\n";
+            main_file << "esorex  --log-file=esorex_sci.log kmos_sci_red -no_combine "
+                "-background " << baked_options << " sci.sof\n";
+            main_file << "mv *.fits NN/\n\n";
+            main_file << "# Combine the two interpolations\n";
+            main_file << "${KMOS_SCRIPTS_DIR}/merge_cs_nn CS NN\n\n";
+            add_stop_fail(main_file);
+        } else if (task == "acq") {
+            print("prepare reduction of acquisition frames in ", raw_dir);
+
+            sof.open("acq.sof");
+            if (!add_files(sof, "acq", "SCIENCE")) {
+                error("cannot proceed");
+                return 1;
+            }
+            sof << kmos_calib_dir+"kmos_wave_band.fits  WAVE_BAND\n";
+            sof << kmos_calib_dir+"kmos_oh_spec_"+band+".fits OH_SPEC\n";
+            if (!add_calib(sof)) {
+                error("cannot proceed");
+                return 1;
+            }
+            if (!stdstar.empty()) {
+                std::string telluric;
+                if (pipeline_version_rev >= 3.19) {
+                    telluric = stdstar+"TELLURIC_"+grating+".fits";
+                } else {
+                    telluric = stdstar+"telluric_"+grating+".fits";
+                }
+                if (!file::exists(telluric)) {
+                    error("missing standard star calibration ("+telluric+")");
+                    return 1;
+                }
+                sof << telluric+" TELLURIC\n";
+            }
+            sof.close();
+
+            main_file << "# ACQ\n";
+            main_file << "esorex  --log-file=esorex_acq.log kmos_sci_red -no_combine "
+                "-background " << baked_options << " acq.sof\n";
             add_stop_fail(main_file);
         }
     } else if (task == "helpers") {
@@ -446,7 +489,7 @@ int phypp_main(int argc, char* argv[]) {
             main_file << "# Full " << helper << "\n";
             main_file << "esorex --log-file=esorex_combine_" << helper <<
                 ".log kmos_combine -method='header' -cmethod='median' "
-                "-name='" << toupper(helper) << "' combine.sof\n";
+                "-name='" << to_upper(helper) << "' combine.sof\n";
             main_file << "esorex kmo_make_image image"+helper+".sof\n";
             if (pipeline_version_rev >= 3.19) {
                 main_file << "rm COMBINE_SCI_RECONSTRUCTED_" << helper << ".fits\n";

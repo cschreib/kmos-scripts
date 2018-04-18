@@ -88,9 +88,9 @@ int phypp_main(int argc, char* argv[]) {
         for (uint_t i : range(0, 24)) {
             std::string target;
             iimg.reach_hdu(0);
-            if (!iimg.read_keyword("ESO OCS ARM"+strn(i+1)+" NAME", target)) {
+            if (!iimg.read_keyword("ESO OCS ARM"+to_string(i+1)+" NAME", target)) {
                 warning("in '", filename, "'");
-                warning("missing keyword 'ESO OCS ARM"+strn(i+1)+" NAME', is something wrong with this file?");
+                warning("missing keyword 'ESO OCS ARM"+to_string(i+1)+" NAME', is something wrong with this file?");
                 continue;
             }
 
@@ -147,7 +147,7 @@ int phypp_main(int argc, char* argv[]) {
             // Find HDU of this target in this file
             for (uint_t i : range(0, 24)) {
                 std::string t;
-                if (!iimg.read_keyword("ESO OCS ARM"+strn(i+1)+" NAME", t)) {
+                if (!iimg.read_keyword("ESO OCS ARM"+to_string(i+1)+" NAME", t)) {
                     continue;
                 }
 
@@ -397,61 +397,100 @@ int phypp_main(int argc, char* argv[]) {
         if (verbose) note("  masking");
         vec1u idb = where(!is_finite(sflx3d) || !is_finite(serr3d) || !is_finite(swht3d) || crej);
         sflx3d[idb] = 0; serr3d[idb] = 0; swht3d[idb] = 0;
+        if (verbose) note("  ", round(10.0*100.0*idb.size()/float(sflx3d.size()))/10.0, "% of data masked");
 
         // Stack them
         auto stack_spectrum = [&](const vec4d& flx4d, const vec4d& err4d, const vec4d& wht4d,
-            vec3d& flx, vec3d& err) {
+            vec3d& flx, vec3d& err, vec3d& errb) {
 
-            vec3d wht = partial_total(0, wht4d);
-            flx = partial_total(0, flx4d*wht4d)/wht;
-            if (!no_error) {
-                err = sqrt(partial_total(0, sqr(err4d*wht4d)))/wht;
+            // vec3d wht = partial_total(0, wht4d);
+            // flx = partial_total(0, flx4d*wht4d)/wht;
+            // if (!no_error) {
+            //     err = sqrt(partial_total(0, sqr(err4d*wht4d)))/wht;
+            // }
+
+            flx.resize(flx4d.dims[1], flx4d.dims[2], flx4d.dims[3]);
+            errb.resize(flx4d.dims[1], flx4d.dims[2], flx4d.dims[3]);
+            err.resize(flx4d.dims[1], flx4d.dims[2], flx4d.dims[3]);
+
+            for (uint_t il : range(flx4d.dims[1]))
+            for (uint_t iy : range(flx4d.dims[2]))
+            for (uint_t ix : range(flx4d.dims[3])) {
+                double wht = 0.0;
+                for (uint_t i : range(flx4d.dims[0])) {
+                    flx.safe(il,iy,ix) += flx4d.safe(i,il,iy,ix)*wht4d.safe(i,il,iy,ix);
+                    if (!no_error) {
+                        err.safe(il,iy,ix) += sqr(err4d.safe(i,il,iy,ix)*wht4d.safe(i,il,iy,ix));
+                    }
+                    wht += wht4d.safe(i,il,iy,ix);
+                }
+
+                flx.safe(il,iy,ix) /= wht;
+                if (!no_error) {
+                   err.safe(il,iy,ix) = sqrt(err.safe(il,iy,ix))/wht;
+                }
+
+                uint_t npt = 0;
+                wht = 0.0;
+                for (uint_t i : range(flx4d.dims[0])) {
+                    if (wht4d.safe(i,il,iy,ix) > 0) {
+                        ++npt;
+                        wht += wht4d.safe(i,il,iy,ix);
+                        errb.safe(il,iy,ix) += sqr((flx4d.safe(i,il,iy,ix) - flx.safe(il,iy,ix))*wht4d.safe(i,il,iy,ix));
+                    }
+                }
+
+                errb.safe(il,iy,ix) = sqrt(errb.safe(il,iy,ix)*(npt/(npt-1.0)))/wht;
+                if (no_error) {
+                    // Use bootstrap error as the "formal error" because we have none...
+                    err.safe(il,iy,ix) = errb.safe(il,iy,ix);
+                }
             }
         };
 
         if (verbose) note("  stacking");
         vec3d flx3d, err3d, errb3d;
-        stack_spectrum(sflx3d, serr3d, swht3d, flx3d, err3d);
+        stack_spectrum(sflx3d, serr3d, swht3d, flx3d, err3d, errb3d);
 
         // Compute bootstrapping
-        if (nbstrap > 0) {
-            if (verbose) note("  bootstrapping");
-            auto pg = progress_start(nbstrap);
-            vec4d bres(flx3d.dims[0], flx3d.dims[1], flx3d.dims[2], nbstrap);
-            for (uint_t i : range(nbstrap)) {
-                // vec1u ids = shuffle(seed, uindgen(nfile))[_-(nfile/2)]; // without replacement
-                vec1u ids = randomi(seed, 0, nfile-1, nfile/2); // with replacement
+        // if (nbstrap > 0) {
+        //     if (verbose) note("  bootstrapping");
+        //     auto pg = progress_start(nbstrap);
+        //     vec4d bres(flx3d.dims[0], flx3d.dims[1], flx3d.dims[2], nbstrap);
+        //     for (uint_t i : range(nbstrap)) {
+        //         // vec1u ids = shuffle(seed, uindgen(nfile))[_-(nfile/2)]; // without replacement
+        //         vec1u ids = randomi(seed, 0, nfile-1, nfile/2); // with replacement
 
-                // Compute flux[half] and error[half]
-                vec3d bflx3d(flx3d.dims);
-                vec3d berr3d;
-                if (!no_error) berr3d.resize(flx3d.dims);
+        //         // Compute flux[half] and error[half]
+        //         vec3d bflx3d(flx3d.dims);
+        //         vec3d berr3d;
+        //         if (!no_error) berr3d.resize(flx3d.dims);
 
-                stack_spectrum(sflx3d(ids,_,_,_), serr3d(ids,_,_,_), swht3d(ids,_,_,_), bflx3d, berr3d);
+        //         stack_spectrum(sflx3d(ids,_,_,_), serr3d(ids,_,_,_), swht3d(ids,_,_,_), bflx3d, berr3d);
 
-                if (!no_error) {
-                    // Subtract flux[total]
-                    bflx3d -= flx3d;
-                    // Weight by the ratio err[total]/err[half] to account for missing elements
-                    bflx3d *= err3d/berr3d;
-                }
+        //         if (!no_error) {
+        //             // Subtract flux[total]
+        //             bflx3d -= flx3d;
+        //             // Weight by the ratio err[total]/err[half] to account for missing elements
+        //             bflx3d *= err3d/berr3d;
+        //         }
 
-                // Save
-                bres(_,_,_,i) = bflx3d;
+        //         // Save
+        //         bres(_,_,_,i) = bflx3d;
 
-                if (verbose) progress(pg);
-            }
+        //         if (verbose) progress(pg);
+        //     }
 
-            if (!no_error) {
-                // Get uncertainty from the RMS of the resulting bootstrap
-                errb3d = partial_rms(3, bres);
-            } else {
-                // Get uncertainty from the stddev of the resulting bootstrap
-                errb3d = partial_stddev(3, bres);
-                // Use this error as the "formal error" because we have none...
-                err3d = errb3d;
-            }
-        }
+        //     if (!no_error) {
+        //         // Get uncertainty from the RMS of the resulting bootstrap
+        //         errb3d = partial_rms(3, bres);
+        //     } else {
+        //         // Get uncertainty from the stddev of the resulting bootstrap
+        //         errb3d = partial_stddev(3, bres);
+        //         // Use this error as the "formal error" because we have none...
+        //         err3d = errb3d;
+        //     }
+        // }
 
         // Save to file
         if (verbose) note("  saving FITS file '"+target+"/cube.fits'");
@@ -495,12 +534,9 @@ int phypp_main(int argc, char* argv[]) {
         oimg.reach_hdu(2);
         oimg.write(err3d);
         write_wcs();
-
-        if (nbstrap > 0) {
-            oimg.reach_hdu(3);
-            oimg.write(errb3d);
-            write_wcs();
-        }
+        oimg.reach_hdu(3);
+        oimg.write(errb3d);
+        write_wcs();
     }
 
     return 0;

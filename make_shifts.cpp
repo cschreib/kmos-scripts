@@ -17,7 +17,7 @@ int phypp_main(int argc, char* argv[]) {
         return 1;
     }
 
-    helper = tolower(helper);
+    helper = to_lower(helper);
 
     std::string scis = argv[1];
 
@@ -69,7 +69,7 @@ int phypp_main(int argc, char* argv[]) {
 
             if (badfile) continue;
 
-            arms = tolower(trim(arms));
+            arms = to_lower(trim(arms));
 
             vec1u ida = where(arms == helper);
             if (ida.empty()) {
