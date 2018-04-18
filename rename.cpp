@@ -40,7 +40,7 @@ int phypp_main(int argc, char* argv[]) {
 
             tpl = trim(to_lower(tpl));
 
-            if (!start_with(tpl, "kmos_spec_obs")) {
+            if (!begins_with(tpl, "kmos_spec_obs")) {
                 warning("unknown frame type '", obj, "' with template '", tpl, "'");
                 continue;
             }
@@ -48,7 +48,7 @@ int phypp_main(int argc, char* argv[]) {
             obj = "sci";
         }
 
-        if (!end_with(file, obj+".fits")) {
+        if (!ends_with(file, obj+".fits")) {
             spawn("mv "+dir+file+" "+dir+file::remove_extension(file)+"-"+obj+".fits");
         }
     }

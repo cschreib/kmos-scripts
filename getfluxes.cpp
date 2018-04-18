@@ -60,7 +60,7 @@ int phypp_main(int argc, char* argv[]) {
                     return 1;
                 }
 
-                if (start_with(ctype, "TAB")) {
+                if (begins_with(ctype, "TAB")) {
                     // Tabulated axis, read from other extensions
                     uint_t lowext = npos, upext = npos;
                     std::string axis = erase_begin(ctype, "TAB");
